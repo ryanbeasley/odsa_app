@@ -1,0 +1,8 @@
+node_modules/
+mobile/node_modules/
+server/node_modules/
+npm-debug.log*
+*.log
+.env
+mobile/.env
+server/.env

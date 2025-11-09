@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "ODSA Mobile",
+    "slug": "odsa-mobile",
+    "scheme": "odsamobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.odsa.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
