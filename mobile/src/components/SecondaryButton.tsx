@@ -15,14 +15,18 @@ export function SecondaryButton({ label, style, ...props }: SecondaryButtonProps
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: radii.pill,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: colors.primary,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
   },
   label: {
     color: colors.primary,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
+    fontSize: 16,
   },
 });

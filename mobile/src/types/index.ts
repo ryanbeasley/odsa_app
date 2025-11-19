@@ -25,3 +25,69 @@ export type AnnouncementsResponse = {
 export type AnnouncementCreateResponse = {
   announcement: Announcement;
 };
+
+export type SupportLink = {
+  id: number;
+  title: string;
+  description: string;
+  link: string;
+  createdAt: string;
+};
+
+export type SupportLinksResponse = {
+  links: SupportLink[];
+};
+
+export type SupportLinkMutationResponse = {
+  link: SupportLink;
+};
+
+export type PushSubscriptionStatusResponse = {
+  subscription: {
+    token: string;
+    createdAt: string;
+  } | null;
+};
+
+export type WorkingGroup = {
+  id: number;
+  name: string;
+  description: string;
+  members: string;
+  createdAt: string;
+};
+
+export type WorkingGroupsResponse = {
+  groups: WorkingGroup[];
+};
+
+export type WorkingGroupCreateResponse = {
+  group: WorkingGroup;
+};
+
+export type Event = {
+  id: number;
+  name: string;
+  description: string;
+  workingGroupId: number;
+  workingGroupName: string | null;
+  startAt: string;
+  endAt: string;
+  location: string;
+  seriesUuid: string | null;
+  upcomingOccurrences?: string[];
+  recurrence: RecurrenceRule | null;
+  seriesEndAt: string | null;
+  attending?: boolean;
+  createdAt: string;
+};
+
+export type EventsResponse = {
+  events: Event[];
+};
+
+export type EventCreateResponse = {
+  event: Event;
+};
+
+export type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'monthly';

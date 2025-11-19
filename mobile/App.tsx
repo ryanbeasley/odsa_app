@@ -5,18 +5,23 @@ import { Hero } from './src/components/Hero';
 import { BottomNav, TabKey } from './src/components/BottomNav';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { AnnouncementsScreen } from './src/screens/AnnouncementsScreen';
 import { EventsScreen } from './src/screens/EventsScreen';
-import { CalendarScreen } from './src/screens/CalendarScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SupportDetailsScreen } from './src/screens/SupportDetailsScreen';
+import { WorkingGroupsScreen } from './src/screens/WorkingGroupsScreen';
 import { useAuth } from './src/hooks/useAuth';
 import { useAnnouncements } from './src/hooks/useAnnouncements';
+import { usePushSubscription } from './src/hooks/usePushSubscription';
+import { useWorkingGroups } from './src/hooks/useWorkingGroups';
+import { useEvents } from './src/hooks/useEvents';
 import { colors } from './src/styles/theme';
 
 export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [activeTab, setActiveTab] = useState<TabKey>('announcements');
 
   const {
     user,
@@ -46,10 +51,40 @@ export default function App() {
     saveAnnouncement,
     loadMoreAnnouncements,
   } = useAnnouncements(token);
+  const {
+    enabled: pushEnabled,
+    loading: pushLoading,
+    error: pushError,
+    setEnabled: setPushEnabled,
+    setError: setPushError,
+    enable: enablePush,
+    disable: disablePush,
+  } = usePushSubscription(token);
+  const {
+    groups,
+    loading: groupsLoading,
+    saving: groupsSaving,
+    error: groupsError,
+    setError: setGroupsError,
+    refresh: refreshGroups,
+    createGroup,
+    updateGroup,
+  } = useWorkingGroups(token);
+  const {
+    events,
+    loading: eventsLoading,
+    saving: eventsSaving,
+    error: eventsError,
+    setError: setEventsError,
+    refresh: refreshEvents,
+    createEvent,
+    updateEvent,
+    toggleAttendance,
+  } = useEvents(token);
 
   useEffect(() => {
     if (!user) {
-      setActiveTab('home');
+      setActiveTab('announcements');
     }
   }, [user]);
 
@@ -82,10 +117,35 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setActiveTab('home');
+    setActiveTab('announcements');
+    if (token) {
+      void disablePush().catch(() => {
+        // best-effort cleanup; ignore failures on logout
+      });
+    }
     logout();
     setError(null);
     setDraft('');
+    setPushError(null);
+    setPushEnabled(false);
+    setGroupsError(null);
+    setEventsError(null);
+  };
+
+  const handleToggleNotifications = async () => {
+    if (!token || pushLoading) {
+      return;
+    }
+    try {
+      setPushError(null);
+      if (pushEnabled) {
+        await disablePush();
+      } else {
+        await enablePush();
+      }
+    } catch {
+      // error handled in hook
+    }
   };
 
   const handleSaveAnnouncement = async () => {
@@ -99,28 +159,70 @@ export default function App() {
     }
   };
 
+  const handleCreateWorkingGroup = async (payload: { name: string; description: string; members: string }) => {
+    try {
+      setGroupsError(null);
+      await createGroup(payload);
+    } catch {
+      // error handled in hook
+    }
+  };
+
+  const handleUpdateWorkingGroup = async (
+    id: number,
+    payload: { name: string; description: string; members: string }
+  ) => {
+    try {
+      setGroupsError(null);
+      await updateGroup(id, payload);
+    } catch {
+      // error handled in hook
+    }
+  };
+
+  const handleCreateEvent = async (payload: {
+    name: string;
+    description: string;
+    workingGroupId: number;
+    startAt: string;
+    endAt: string;
+    location: string;
+  }) => {
+    try {
+      setEventsError(null);
+      await createEvent(payload);
+    } catch {
+      // error handled in hook
+    }
+  };
+
+  const handleUpdateEvent = async (
+    id: number,
+    payload: {
+      name: string;
+      description: string;
+      workingGroupId: number;
+      startAt: string;
+      endAt: string;
+      location: string;
+    }
+  ) => {
+    try {
+      setEventsError(null);
+      await updateEvent(id, payload);
+    } catch {
+      // error handled in hook
+    }
+  };
+
   const renderActiveScreen = () => {
     if (!user) {
       return null;
     }
     switch (activeTab) {
-      case 'events':
-        return <EventsScreen />;
-      case 'calendar':
-        return <CalendarScreen />;
-      case 'settings':
+      case 'announcements':
         return (
-          <SettingsScreen
-            onLogout={handleLogout}
-            onToggleAdmin={toggleAdminMode}
-            canToggleAdmin={isSessionAdmin}
-            isAdminView={isViewingAsAdmin}
-          />
-        );
-      case 'home':
-      default:
-        return (
-          <HomeScreen
+          <AnnouncementsScreen
             user={user}
             announcements={announcements}
             draft={draft}
@@ -138,6 +240,63 @@ export default function App() {
             onSave={handleSaveAnnouncement}
             onLoadMore={loadMoreAnnouncements}
           />
+        );
+      case 'events':
+        return (
+          <EventsScreen
+            events={events}
+            groups={groups}
+            loading={eventsLoading}
+            saving={eventsSaving}
+            error={eventsError}
+            isAdmin={Boolean(isAdmin)}
+            onRefresh={refreshEvents}
+            onCreate={handleCreateEvent}
+            onUpdate={handleUpdateEvent}
+            onToggleAttendance={toggleAttendance}
+          />
+        );
+      case 'support':
+        return (
+          <SupportDetailsScreen
+            token={token}
+            onLogout={handleLogout}
+            canToggleAdmin={isSessionAdmin}
+            isAdminView={isViewingAsAdmin}
+            onToggleAdmin={toggleAdminMode}
+          />
+        );
+      case 'workingGroups':
+        return (
+          <WorkingGroupsScreen
+            groups={groups}
+            loading={groupsLoading}
+            saving={groupsSaving}
+            error={groupsError}
+            isAdmin={Boolean(isAdmin)}
+            onRefresh={refreshGroups}
+            onCreate={handleCreateWorkingGroup}
+            onUpdate={handleUpdateWorkingGroup}
+          />
+        );
+      case 'settings':
+        return (
+          <SettingsScreen
+            user={user}
+            onLogout={handleLogout}
+            onToggleAdmin={toggleAdminMode}
+            canToggleAdmin={isSessionAdmin}
+            isAdminView={isViewingAsAdmin}
+            notificationsEnabled={pushEnabled}
+            notificationsLoading={pushLoading}
+            notificationsError={pushError}
+            onToggleNotifications={handleToggleNotifications}
+          />
+        );
+      case 'home':
+      default:
+        return (
+          <HomeScreen user={user} onNavigate={setActiveTab} />
         );
     }
   };
