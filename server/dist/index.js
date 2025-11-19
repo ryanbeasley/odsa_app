@@ -496,7 +496,17 @@ app.get('/api/events', authenticate, (_req, res) => {
     const userId = res.req.user?.id ?? null;
     const userEventIds = userId ? new Set((0, db_1.listUserEventIds)(userId)) : new Set();
     const nowIso = new Date().toISOString();
-    const events = (0, db_1.listUpcomingEvents)(nowIso).map(serializeEvent);
+    const eventsRaw = (0, db_1.listUpcomingEvents)(nowIso);
+    const attendeeCounts = (0, db_1.countAttendeesByEventIds)(eventsRaw.map((e) => e.id));
+    const events = eventsRaw.map((evt) => {
+        const serialized = serializeEvent(evt);
+        const attending = userEventIds.has(evt.id);
+        return {
+            ...serialized,
+            attending,
+            attendeeCount: attendeeCounts[evt.id] ?? 0,
+        };
+    });
     const grouped = events.reduce((acc, evt) => {
         const key = evt.seriesUuid ?? `single-${evt.id}`;
         if (!acc[key]) {
@@ -510,11 +520,16 @@ app.get('/api/events', authenticate, (_req, res) => {
     }, {});
     const response = Object.values(grouped).map(({ next, upcoming }) => ({
         ...next,
-        attending: userEventIds.has(next.id) || (next.seriesUuid ? upcoming.some((e) => userEventIds.has(e.id)) : false),
+        attending: next.attending || (next.seriesUuid ? upcoming.some((e) => e.attending) : false),
         upcomingOccurrences: upcoming
-            .map((e) => e.startAt)
-            .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
-            .slice(0, 5),
+            .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+            .slice(0, 5)
+            .map((e) => ({
+            eventId: e.id,
+            startAt: e.startAt,
+            attendeeCount: e.attendeeCount ?? 0,
+            attending: Boolean(e.attending),
+        })),
     }));
     res.json({ events: response });
 });

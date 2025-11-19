@@ -22,6 +22,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('announcements');
+  const [attendingOnly, setAttendingOnly] = useState(false);
 
   const {
     user,
@@ -215,6 +216,13 @@ export default function App() {
     }
   };
 
+  const handleSelectTab = (tab: TabKey) => {
+    if (tab === 'events') {
+      setAttendingOnly(true);
+    }
+    setActiveTab(tab);
+  };
+
   const renderActiveScreen = () => {
     if (!user) {
       return null;
@@ -250,6 +258,8 @@ export default function App() {
             saving={eventsSaving}
             error={eventsError}
             isAdmin={Boolean(isAdmin)}
+            attendingOnly={attendingOnly}
+            onToggleAttendingOnly={setAttendingOnly}
             onRefresh={refreshEvents}
             onCreate={handleCreateEvent}
             onUpdate={handleUpdateEvent}
@@ -334,7 +344,7 @@ export default function App() {
           </View>
 
           <View style={styles.bottomNavWrapper}>
-            <BottomNav activeTab={activeTab} onSelectTab={setActiveTab} />
+            <BottomNav activeTab={activeTab} onSelectTab={handleSelectTab} />
           </View>
         </View>
       )}

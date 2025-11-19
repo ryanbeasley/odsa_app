@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,8 @@ type EventsScreenProps = {
   saving: boolean;
   error: string | null;
   isAdmin: boolean;
+  attendingOnly: boolean;
+  onToggleAttendingOnly: (value: boolean) => void;
   onRefresh: () => void;
   onCreate: (payload: {
     name: string;
@@ -57,6 +60,8 @@ export function EventsScreen({
   saving,
   error,
   isAdmin,
+  attendingOnly,
+  onToggleAttendingOnly,
   onRefresh,
   onCreate,
   onUpdate,
@@ -79,6 +84,7 @@ export function EventsScreen({
   const [pickerValue, setPickerValue] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
   const [filterGroupId, setFilterGroupId] = useState<number | null>(null);
+  const [seriesPrompt, setSeriesPrompt] = useState<{ eventId: number; attending: boolean } | null>(null);
 
   const canSubmit = useMemo(() => {
     return Boolean(
@@ -129,13 +135,14 @@ export function EventsScreen({
     const query = search.trim().toLowerCase();
     return events
       .filter((evt) => new Date(evt.endAt).getTime() >= now)
+      .filter((evt) => (attendingOnly ? Boolean(evt.attending) : true))
       .filter((evt) => (filterGroupId ? evt.workingGroupId === filterGroupId : true))
       .filter((evt) => {
         if (!query) return true;
         return evt.name.toLowerCase().includes(query) || evt.description.toLowerCase().includes(query);
       })
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  }, [events, filterGroupId, search]);
+  }, [events, filterGroupId, search, attendingOnly]);
 
   const selectedGroup = groups.find((g) => g.id === formState.workingGroupId);
 
@@ -206,6 +213,14 @@ export function EventsScreen({
                 onChangeText={(value) => setSearch(value)}
                 placeholder="Search by name or description"
               />
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => onToggleAttendingOnly(!attendingOnly)}
+                activeOpacity={0.85}
+              >
+                <Feather name={attendingOnly ? 'check-square' : 'square'} size={18} color={colors.text} />
+                <Text style={styles.checkboxLabel}>Events I&apos;m attending</Text>
+              </TouchableOpacity>
               <View style={styles.groupPicker}>
                 <Text style={styles.groupPickerLabel}>Working group</Text>
                 {Platform.OS === 'web' ? (
@@ -487,9 +502,12 @@ export function EventsScreen({
                 {filteredEvents.map((event) => (
                   <View key={event.id} style={styles.listItem}>
                     <View style={styles.itemHeader}>
-                      <Text style={styles.itemName}>{event.name}</Text>
+                    <Text style={styles.itemName}>{event.name}</Text>
+                    <View style={styles.itemMeta}>
                       <Text style={styles.itemDate}>{formatTimestamp(event.startAt)}</Text>
+                      <Text style={styles.attendeeCount}>{event.attendeeCount ?? 0} attending</Text>
                     </View>
+                  </View>
                     <Text style={styles.itemDescription}>{event.description}</Text>
                     <Text style={styles.metaLabel}>Working group</Text>
                     <Text style={styles.metaValue}>{event.workingGroupName ?? `#${event.workingGroupId}`}</Text>
@@ -507,12 +525,51 @@ export function EventsScreen({
                         <Text style={styles.metaLabel}>More in this series</Text>
                         <View style={styles.seriesList}>
                           {event.upcomingOccurrences
-                            .filter((occ) => occ !== event.startAt)
-                            .map((occurrence) => (
-                              <View key={occurrence} style={styles.occurrencePill}>
-                                <Text style={styles.occurrenceText}>{formatTimestamp(occurrence)}</Text>
-                              </View>
-                            ))}
+                            .filter((occ) => occ.eventId !== event.id || occ.startAt !== event.startAt)
+                            .map((occurrence) => {
+                              const occurrenceEventId = Number(occurrence.eventId ?? event.id);
+                              const occurrenceFromEvents = events.find(
+                                (e) => e.id === occurrence.eventId || (e.seriesUuid === event.seriesUuid && e.startAt === occurrence.startAt)
+                              );
+                              const occurrenceAttending = occurrenceFromEvents?.attending ?? Boolean(occurrence.attending);
+                              const occurrenceCount = occurrenceFromEvents?.attendeeCount ?? occurrence.attendeeCount ?? 0;
+                              return (
+                                <View key={`${occurrence.eventId ?? occurrence.startAt}`} style={styles.occurrenceRow}>
+                                  <View style={styles.occurrencePill}>
+                                    <Text style={styles.occurrenceText}>{formatTimestamp(occurrence.startAt)}</Text>
+                                  </View>
+                                  <View style={styles.occurrenceRight}>
+                                    <View style={styles.occurrenceCountPill}>
+                                      <Feather name="users" size={12} color={colors.text} />
+                                      <Text style={styles.occurrenceCountText}>{occurrenceCount}</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                      style={[
+                                        styles.occurrenceAttendButton,
+                                        occurrenceAttending && styles.occurrenceAttendButtonActive,
+                                      ]}
+                                      onPress={() => {
+                                        if (!occurrenceEventId) return;
+                                        void onToggleAttendance(occurrenceEventId, {
+                                          series: false,
+                                          attending: occurrenceAttending,
+                                        });
+                                      }}
+                                      disabled={!occurrenceEventId}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.occurrenceAttendLabel,
+                                          occurrenceAttending && styles.occurrenceAttendLabelActive,
+                                        ]}
+                                      >
+                                        {occurrenceAttending ? 'Attending' : 'Attend'}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                </View>
+                              );
+                            })}
                         </View>
                       </View>
                     ) : null}
@@ -543,24 +600,36 @@ export function EventsScreen({
                       <TouchableOpacity
                         style={[styles.editButton, event.attending ? styles.attendingButton : styles.signUpButton]}
                         onPress={() => {
+                          const isAttending = Boolean(event.attending);
                           if (event.seriesUuid) {
-                            Alert.alert(
-                              event.attending ? 'Cancel attendance' : 'Sign up for series',
-                              'Apply to this event only or all in the series?',
-                              [
-                                {
-                                  text: event.attending ? 'This event' : 'This event only',
-                                  onPress: () => onToggleAttendance(event.id, { series: false, attending: Boolean(event.attending) }),
-                                },
-                                {
-                                  text: event.attending ? 'All events' : 'All in series',
-                                  onPress: () => onToggleAttendance(event.id, { series: true, attending: Boolean(event.attending) }),
-                                },
-                                { text: 'Cancel', style: 'cancel' },
-                              ]
-                            );
+                            if (Platform.OS !== 'web') {
+                              Alert.alert(
+                                isAttending ? 'Cancel attendance' : 'Sign up for series',
+                                'Apply to this event only or all in the series?',
+                                [
+                                  {
+                                    text: isAttending ? 'This event' : 'This event only',
+                                    onPress: () => {
+                                      void onToggleAttendance(event.id, { series: false, attending: isAttending });
+                                      setSeriesAllMap((prev) =>
+                                        event.seriesUuid ? { ...prev, [event.seriesUuid]: false } : prev
+                                      );
+                                    },
+                                  },
+                                  {
+                                    text: isAttending ? 'All events' : 'All in series',
+                                    onPress: () => {
+                                      void onToggleAttendance(event.id, { series: true, attending: isAttending });
+                                    },
+                                  },
+                                  { text: 'Cancel', style: 'cancel' },
+                                ]
+                              );
+                            } else {
+                              setSeriesPrompt({ eventId: event.id, attending: isAttending });
+                            }
                           } else {
-                            void onToggleAttendance(event.id, { series: false, attending: Boolean(event.attending) });
+                            void onToggleAttendance(event.id, { series: false, attending: isAttending });
                           }
                         }}
                         activeOpacity={0.85}
@@ -580,6 +649,37 @@ export function EventsScreen({
           ) : null}
         </SectionCard>
       </ScrollView>
+      {Platform.OS === 'web' && seriesPrompt ? (
+                <Modal transparent animationType="fade" visible onRequestClose={() => setSeriesPrompt(null)}>
+                  <View style={styles.modalBackdrop}>
+                    <View style={styles.modalCard}>
+                      <Text style={styles.modalTitle}>{seriesPrompt.attending ? 'Cancel attendance' : 'Sign up for series'}</Text>
+                      <Text style={styles.modalMessage}>Apply to this event only or all in the series?</Text>
+                      <View style={styles.modalActions}>
+                        <SecondaryButton
+                          label={seriesPrompt.attending ? 'This event' : 'This event only'}
+                          onPress={() => {
+                            void onToggleAttendance(seriesPrompt.eventId, { series: false, attending: seriesPrompt.attending });
+                            setSeriesPrompt(null);
+                          }}
+                          style={styles.modalButton}
+                        />
+                        <PrimaryButton
+                          label={seriesPrompt.attending ? 'All events' : 'All in series'}
+                          onPress={() => {
+                            void onToggleAttendance(seriesPrompt.eventId, { series: true, attending: seriesPrompt.attending });
+                            setSeriesPrompt(null);
+                          }}
+                          style={styles.modalButton}
+                        />
+              </View>
+              <TouchableOpacity style={styles.modalClose} onPress={() => setSeriesPrompt(null)}>
+                <Text style={styles.modalCloseText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
       {activePicker && Platform.OS !== 'web' ? (
         <DateTimePicker
           value={pickerValue}
@@ -608,6 +708,11 @@ function formatTimestamp(value: string) {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  itemMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   scrollContent: {
     flexGrow: 1,
@@ -710,6 +815,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
   },
+  attendeeCount: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '600',
+  },
   itemDescription: {
     fontSize: 14,
     color: colors.text,
@@ -736,7 +846,19 @@ const styles = StyleSheet.create({
   },
   seriesList: {
     flexDirection: 'column',
-    gap: spacing.xs,
+    gap: spacing.sm,
+  },
+  occurrenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  occurrenceRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
   },
   occurrencePill: {
     paddingVertical: spacing.xs / 2,
@@ -748,6 +870,42 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 12,
     fontWeight: '600',
+  },
+  occurrenceCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs / 2,
+    paddingVertical: spacing.xs / 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  occurrenceCountText: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  occurrenceAttendButton: {
+    paddingVertical: spacing.xs / 2,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+  },
+  occurrenceAttendButtonActive: {
+    borderColor: '#badbcc',
+    backgroundColor: '#d1e7dd',
+  },
+  occurrenceAttendLabel: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  occurrenceAttendLabelActive: {
+    color: '#0f5132',
   },
   editButton: {
     flexDirection: 'row',
@@ -857,5 +1015,45 @@ const styles = StyleSheet.create({
   },
   seriesControls: {
     gap: spacing.sm,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  modalButton: {
+    flex: 1,
+  },
+  modalClose: {
+    marginTop: spacing.sm,
+    alignSelf: 'center',
+  },
+  modalCloseText: {
+    color: colors.textMuted,
+    fontSize: 13,
   },
 });

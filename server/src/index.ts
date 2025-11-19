@@ -46,6 +46,7 @@ import {
   deleteEventAttendee,
   listUserEventIds,
   listEventsBySeries,
+  countAttendeesByEventIds,
 } from './db';
 
 dotenv.config();
@@ -648,7 +649,17 @@ app.get('/api/events', authenticate, (_req, res) => {
   const userEventIds = userId ? new Set(listUserEventIds(userId)) : new Set<number>();
 
   const nowIso = new Date().toISOString();
-  const events = listUpcomingEvents(nowIso).map(serializeEvent);
+  const eventsRaw = listUpcomingEvents(nowIso);
+  const attendeeCounts = countAttendeesByEventIds(eventsRaw.map((e) => e.id));
+  const events = eventsRaw.map((evt) => {
+    const serialized = serializeEvent(evt);
+    const attending = userEventIds.has(evt.id);
+    return {
+      ...serialized,
+      attending,
+      attendeeCount: attendeeCounts[evt.id] ?? 0,
+    };
+  });
 
   const grouped = events.reduce<Record<string, { upcoming: typeof events; next: typeof events[number] }>>((acc, evt) => {
     const key = evt.seriesUuid ?? `single-${evt.id}`;
@@ -664,11 +675,17 @@ app.get('/api/events', authenticate, (_req, res) => {
 
   const response = Object.values(grouped).map(({ next, upcoming }) => ({
     ...next,
-    attending: userEventIds.has(next.id) || (next.seriesUuid ? upcoming.some((e) => userEventIds.has(e.id)) : false),
+    attending:
+      next.attending || (next.seriesUuid ? upcoming.some((e) => e.attending) : false),
     upcomingOccurrences: upcoming
-      .map((e) => e.startAt)
-      .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
-      .slice(0, 5),
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+      .slice(0, 5)
+      .map((e) => ({
+        eventId: e.id,
+        startAt: e.startAt,
+        attendeeCount: e.attendeeCount ?? 0,
+        attending: Boolean(e.attending),
+      })),
   }));
 
   res.json({ events: response });

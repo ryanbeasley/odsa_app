@@ -18,11 +18,9 @@ export function useEvents(token: string | null) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [groupedSeries, setGroupedSeries] = useState<Record<string, { next: Event; upcoming: string[] }>>({});
 
   const resetState = useCallback(() => {
     setEvents([]);
-    setGroupedSeries({});
     setLoading(false);
     setSaving(false);
     setError(null);
@@ -47,12 +45,6 @@ export function useEvents(token: string | null) {
       }
       const data = (await response.json()) as EventsResponse;
       setEvents(data.events);
-      const grouped: Record<string, { next: Event; upcoming: string[] }> = {};
-      data.events.forEach((evt) => {
-        const key = evt.seriesUuid ?? `single-${evt.id}`;
-        grouped[key] = { next: evt, upcoming: evt.upcomingOccurrences ?? [] };
-      });
-      setGroupedSeries(grouped);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -144,15 +136,55 @@ export function useEvents(token: string | null) {
         if (!response.ok && response.status !== 204) {
           const body = await response.json().catch(() => ({}));
           throw new Error(body?.error ?? `Request failed (${response.status})`);
-        }
+       }
         setEvents((prev) => {
-          const targetSeries = prev.find((evt) => evt.id === eventId)?.seriesUuid ?? null;
+          const delta = options.attending ? -1 : 1;
+          const updateOccurrences = (
+            occurrences: Event['upcomingOccurrences'] | undefined,
+            applyAll: boolean
+          ) =>
+            occurrences?.map((occ) => {
+              const shouldApply = applyAll || occ.eventId === eventId;
+              if (!shouldApply) return occ;
+              const nextCount = Math.max(0, (occ.attendeeCount ?? 0) + delta);
+              return {
+                ...occ,
+                attending: !options.attending,
+                attendeeCount: nextCount,
+              };
+            });
+
+          const targetSeries =
+            prev.find((evt) => evt.id === eventId)?.seriesUuid ??
+            prev.find((evt) => evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId))?.seriesUuid ??
+            null;
           return prev.map((evt) => {
             if (options.series && targetSeries && evt.seriesUuid === targetSeries) {
-              return { ...evt, attending: !options.attending };
+              const nextCount = Math.max(0, (evt.attendeeCount ?? 0) + delta);
+              const nextOccs = updateOccurrences(evt.upcomingOccurrences, true);
+              return {
+                ...evt,
+                attending: !options.attending,
+                attendeeCount: nextCount,
+                upcomingOccurrences: nextOccs,
+              };
             }
             if (evt.id === eventId) {
-              return { ...evt, attending: !options.attending };
+              const nextCount = Math.max(0, (evt.attendeeCount ?? 0) + delta);
+              const nextOccs = updateOccurrences(evt.upcomingOccurrences, false);
+              return {
+                ...evt,
+                attending: !options.attending,
+                attendeeCount: nextCount,
+                upcomingOccurrences: nextOccs,
+              };
+            }
+            if (evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId)) {
+              const nextOccs = updateOccurrences(evt.upcomingOccurrences, false);
+              return {
+                ...evt,
+                upcomingOccurrences: nextOccs,
+              };
             }
             return evt;
           });

@@ -24,6 +24,7 @@ exports.createWorkingGroup = createWorkingGroup;
 exports.updateWorkingGroup = updateWorkingGroup;
 exports.listEvents = listEvents;
 exports.listUpcomingEvents = listUpcomingEvents;
+exports.countAttendeesByEventIds = countAttendeesByEventIds;
 exports.createEvent = createEvent;
 exports.findEventById = findEventById;
 exports.updateEvent = updateEvent;
@@ -316,6 +317,18 @@ function listUpcomingEvents(nowIso) {
        WHERE e.end_at >= ?
        ORDER BY e.start_at ASC, e.created_at ASC`)
         .all(nowIso);
+}
+function countAttendeesByEventIds(eventIds) {
+    if (!eventIds.length) {
+        return {};
+    }
+    const placeholders = eventIds.map(() => '?').join(',');
+    const stmt = db.prepare(`SELECT event_id, COUNT(*) as count FROM event_attendees WHERE event_id IN (${placeholders}) GROUP BY event_id`);
+    const rows = stmt.all(...eventIds);
+    return rows.reduce((acc, row) => {
+        acc[row.event_id] = row.count;
+        return acc;
+    }, {});
 }
 function createEvent(name, description, workingGroupId, startAt, endAt, location, seriesUuid, recurrence, seriesEndAt) {
     const insert = db

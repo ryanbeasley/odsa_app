@@ -75,10 +75,16 @@ export type Event = {
   endAt: string;
   location: string;
   seriesUuid: string | null;
-  upcomingOccurrences?: string[];
+  upcomingOccurrences?: {
+    eventId: number;
+    startAt: string;
+    attendeeCount?: number;
+    attending?: boolean;
+  }[];
   recurrence: RecurrenceRule | null;
   seriesEndAt: string | null;
   attending?: boolean;
+  attendeeCount?: number;
   createdAt: string;
 };
 

@@ -445,6 +445,21 @@ export function listUpcomingEvents(nowIso: string): (EventRow & { working_group_
     .all(nowIso);
 }
 
+export function countAttendeesByEventIds(eventIds: number[]): Record<number, number> {
+  if (!eventIds.length) {
+    return {};
+  }
+  const placeholders = eventIds.map(() => '?').join(',');
+  const stmt = db.prepare(
+    `SELECT event_id, COUNT(*) as count FROM event_attendees WHERE event_id IN (${placeholders}) GROUP BY event_id`
+  );
+  const rows = stmt.all(...eventIds) as Array<{ event_id: number; count: number }>;
+  return rows.reduce<Record<number, number>>((acc, row) => {
+    acc[row.event_id] = row.count;
+    return acc;
+  }, {});
+}
+
 export function createEvent(
   name: string,
   description: string,

@@ -17,7 +17,7 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'events', label: 'Events', icon: 'flag' },
+  { key: 'events', label: 'My Events', icon: 'flag' },
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
