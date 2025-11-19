@@ -6,3 +6,5 @@ npm-debug.log*
 .env
 mobile/.env
 server/.env
+.expo/
+mobile/.expo/
