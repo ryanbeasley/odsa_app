@@ -12,11 +12,13 @@ type AuthScreenProps = {
   mode: AuthMode;
   email: string;
   password: string;
+  confirmPassword: string;
   authError: string | null;
   authLoading: boolean;
   googleLoading: boolean;
   onChangeEmail: (value: string) => void;
   onChangePassword: (value: string) => void;
+  onChangeConfirmPassword: (value: string) => void;
   onSubmit: () => void;
   onToggleMode: () => void;
   onGoogleSignIn: () => void;
@@ -26,11 +28,13 @@ export function AuthScreen({
   mode,
   email,
   password,
+  confirmPassword,
   authError,
   authLoading,
   googleLoading,
   onChangeEmail,
   onChangePassword,
+  onChangeConfirmPassword,
   onSubmit,
   onToggleMode,
   onGoogleSignIn,
@@ -56,6 +60,14 @@ export function AuthScreen({
         secureTextEntry
         placeholder="Password"
       />
+      {mode === 'signup' ? (
+        <TextField
+          value={confirmPassword}
+          onChangeText={onChangeConfirmPassword}
+          secureTextEntry
+          placeholder="Confirm password"
+        />
+      ) : null}
       {authError ? <Text style={styles.error}>{authError}</Text> : null}
       <PrimaryButton label={mode === 'signup' ? 'Create account' : 'Log in'} loading={authLoading} onPress={onSubmit} />
       <GoogleButton onPress={onGoogleSignIn} loading={googleLoading} disabled={googleLoading} />

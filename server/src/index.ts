@@ -47,6 +47,12 @@ import {
   listUserEventIds,
   listEventsBySeries,
   countAttendeesByEventIds,
+  listEventAlertCandidates,
+  recordEventNotificationLog,
+  hasEventNotificationLog,
+  listUsers,
+  updateUserProfile,
+  updateUserRole,
 } from './db';
 
 dotenv.config();
@@ -58,6 +64,10 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 const EXPO_PUSH_TOKEN = process.env.EXPO_PUSH_ACCESS_TOKEN;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const EVENT_ALERT_INTERVAL_MS = Number(process.env.EVENT_ALERT_INTERVAL_MS ?? 5 * 60 * 1000);
+const EVENT_ALERT_LOOKAHEAD_HOURS = Number(process.env.EVENT_ALERT_LOOKAHEAD_HOURS ?? 24);
+const EVENT_ALERT_HOUR_MS = 60 * 60 * 1000;
+let eventAlertTimer: NodeJS.Timeout | null = null;
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webPush.setVapidDetails('mailto:push@odsa.local', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -90,8 +100,22 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-function toPublicUser(user: { id: number; email: string; role: Role }) {
-  return { id: user.id, email: user.email, role: user.role };
+function toPublicUser(user: {
+  id: number;
+  email: string;
+  role: Role;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+}) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    firstName: user.first_name ?? null,
+    lastName: user.last_name ?? null,
+    phone: user.phone ?? null,
+  };
 }
 
 function signToken(user: { id: number; email: string; role: Role }) {
@@ -210,6 +234,80 @@ app.post('/api/oauth/google', async (req, res) => {
   }
 });
 
+app.patch('/api/profile', authenticate, (req: AuthedRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { firstName, lastName, phone, email } = req.body ?? {};
+
+  const updates: { first_name?: string | null; last_name?: string | null; phone?: string | null; email?: string } = {};
+  if (firstName !== undefined) {
+    if (firstName !== null && typeof firstName !== 'string') {
+      return res.status(400).json({ error: 'firstName must be a string' });
+    }
+    updates.first_name = firstName?.trim() ? firstName.trim() : null;
+  }
+  if (lastName !== undefined) {
+    if (lastName !== null && typeof lastName !== 'string') {
+      return res.status(400).json({ error: 'lastName must be a string' });
+    }
+    updates.last_name = lastName?.trim() ? lastName.trim() : null;
+  }
+  if (phone !== undefined) {
+    if (phone !== null && typeof phone !== 'string') {
+      return res.status(400).json({ error: 'phone must be a string' });
+    }
+    updates.phone = phone?.trim() ? phone.trim() : null;
+  }
+  if (email !== undefined) {
+    if (email !== null && typeof email !== 'string') {
+      return res.status(400).json({ error: 'email must be a string' });
+    }
+    const normalizedEmail = email?.trim().toLowerCase() ?? null;
+    if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'email is invalid' });
+    }
+    if (normalizedEmail && normalizedEmail !== req.user.email && findUserByEmail(normalizedEmail)) {
+      return res.status(409).json({ error: 'email already registered' });
+    }
+    if (normalizedEmail) {
+      updates.email = normalizedEmail;
+    }
+  }
+
+  const updated = updateUserProfile(req.user.id, updates);
+  if (!updated) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const token = signToken(updated);
+  return res.json({ token, user: toPublicUser(updated) });
+});
+
+app.get('/api/users', authenticate, requireAdmin, (req: AuthedRequest, res: Response) => {
+  const queryParam = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
+  const users = listUsers(typeof queryParam === 'string' ? queryParam : undefined).map(toPublicUser);
+  return res.json({ users });
+});
+
+app.patch('/api/users/:id/role', authenticate, requireAdmin, (req: AuthedRequest, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  if (req.user?.id === id) {
+    return res.status(400).json({ error: 'You cannot change your own role' });
+  }
+  const { role } = req.body ?? {};
+  if (role !== 'user' && role !== 'admin') {
+    return res.status(400).json({ error: 'role must be user or admin' });
+  }
+  const updated = updateUserRole(id, role);
+  if (!updated) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  return res.json({ user: toPublicUser(updated) });
+});
+
 function serializeAnnouncement(row: AnnouncementRow) {
   return {
     id: row.id,
@@ -222,6 +320,8 @@ function serializePushSubscription(row: PushSubscriptionRow) {
   return {
     token: row.token,
     createdAt: new Date(row.created_at).toISOString(),
+    announcementAlertsEnabled: Boolean(row.announcement_alerts_enabled),
+    eventAlertsEnabled: Boolean(row.event_alerts_enabled),
   };
 }
 
@@ -369,14 +469,17 @@ app.patch('/api/support-links/reorder', authenticate, requireAdmin, (req, res) =
 });
 
 app.post('/api/push-subscriptions', authenticate, (req: AuthedRequest, res: Response) => {
-  const { token } = req.body ?? {};
+  const { token, announcementAlertsEnabled, eventAlertsEnabled } = req.body ?? {};
   if (typeof token !== 'string' || !token.trim()) {
     return res.status(400).json({ error: 'token is required' });
   }
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const subscription = upsertPushSubscription(req.user.id, token.trim());
+  const subscription = upsertPushSubscription(req.user.id, token.trim(), {
+    announcementAlertsEnabled: typeof announcementAlertsEnabled === 'boolean' ? announcementAlertsEnabled : undefined,
+    eventAlertsEnabled: typeof eventAlertsEnabled === 'boolean' ? eventAlertsEnabled : undefined,
+  });
   return res.status(201).json({ subscription });
 });
 
@@ -845,19 +948,15 @@ app.patch('/api/events/:id', authenticate, requireAdmin, (req, res) => {
   res.json({ event: serializeEvent({ ...single, working_group_name: workingGroup.name }) });
 });
 
-async function sendAnnouncementPush(body: string) {
-  if (!EXPO_PUSH_TOKEN) {
+type ExpoPushMessage = { to: string; title: string; body: string };
+
+async function dispatchExpoPushMessages(messages: ExpoPushMessage[]) {
+  if (!EXPO_PUSH_TOKEN || !messages.length) {
     return;
   }
-  const tokens = listPushSubscriptions().map((row) => row.token);
-
-  if (tokens.length) {
-    const messages = tokens.map((token) => ({
-      to: token,
-      title: 'New announcement',
-      body,
-    }));
-
+  const chunkSize = 50;
+  for (let i = 0; i < messages.length; i += chunkSize) {
+    const batch = messages.slice(i, i + chunkSize);
     try {
       await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
@@ -866,13 +965,23 @@ async function sendAnnouncementPush(body: string) {
           Accept: 'application/json',
           Authorization: `Bearer ${EXPO_PUSH_TOKEN}`,
         },
-        body: JSON.stringify(messages),
+        body: JSON.stringify(batch),
       });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to send push notifications', err);
     }
   }
+}
+
+async function sendAnnouncementPush(body: string) {
+  const subscribers = listPushSubscriptions().filter((row) => row.announcement_alerts_enabled);
+  const messages = subscribers.map((row) => ({
+    to: row.token,
+    title: 'New announcement',
+    body,
+  }));
+  await dispatchExpoPushMessages(messages);
 
   if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
     const webSubs = listWebPushSubscriptions();
@@ -892,6 +1001,69 @@ async function sendAnnouncementPush(body: string) {
       }
     }
   }
+}
+
+function isSameUtcDay(a: Date, b: Date) {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
+async function processEventAlertNotifications() {
+  if (!EXPO_PUSH_TOKEN) {
+    return;
+  }
+  const now = new Date();
+  const candidates = listEventAlertCandidates(EVENT_ALERT_LOOKAHEAD_HOURS);
+  const messages: ExpoPushMessage[] = [];
+  for (const candidate of candidates) {
+    const startAt = new Date(candidate.start_at);
+    if (Number.isNaN(startAt.getTime())) {
+      continue;
+    }
+    const diffMs = startAt.getTime() - now.getTime();
+    if (diffMs <= 0) {
+      continue;
+    }
+
+    if (isSameUtcDay(startAt, now) && !hasEventNotificationLog(candidate.event_id, candidate.user_id, 'day-of')) {
+      recordEventNotificationLog(candidate.event_id, candidate.user_id, 'day-of');
+      messages.push({
+        to: candidate.token,
+        title: 'Event reminder',
+        body: `Reminder: ${candidate.event_name} is happening today.`,
+      });
+    }
+
+    if (diffMs <= EVENT_ALERT_HOUR_MS && !hasEventNotificationLog(candidate.event_id, candidate.user_id, 'hour-before')) {
+      recordEventNotificationLog(candidate.event_id, candidate.user_id, 'hour-before');
+      messages.push({
+        to: candidate.token,
+        title: 'Event reminder',
+        body: 'You have an event happening today!',
+      });
+    }
+  }
+
+  if (messages.length) {
+    await dispatchExpoPushMessages(messages);
+  }
+}
+
+function startEventAlertScheduler() {
+  if (eventAlertTimer) {
+    return;
+  }
+  const runner = () => {
+    void processEventAlertNotifications().catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to process event alerts', err);
+    });
+  };
+  runner();
+  eventAlertTimer = setInterval(runner, EVENT_ALERT_INTERVAL_MS);
 }
 
 app.patch('/api/support-links/:id', authenticate, requireAdmin, (req, res) => {
@@ -932,6 +1104,7 @@ const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => {
   // eslint-disable-next-line no-console
   console.log(`API listening on http://localhost:${port}`);
+  startEventAlertScheduler();
 });
 app.post('/api/events/:id/attendees', authenticate, (req: AuthedRequest, res: Response) => {
   if (!req.user) {

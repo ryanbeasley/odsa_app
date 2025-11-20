@@ -5,9 +5,15 @@
     "scheme": "odsamobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.odsa.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.odsa.mobile"
@@ -15,6 +21,13 @@
     "web": {
       "bundler": "metro"
     },
-    "notification": {}
+    "notification": {},
+    "extra": {
+      "eas": {
+        "projectId": "5d1b2431-5cb0-4eeb-9388-7fffb0a55396"
+      },
+      "applicationId": "com.odsa.mobile",
+      "router": {}
+    }
   }
 }

@@ -4,6 +4,9 @@ export type User = {
   id: number;
   email: string;
   role: Role;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
 };
 
 export type AuthResponse = {
@@ -46,6 +49,8 @@ export type PushSubscriptionStatusResponse = {
   subscription: {
     token: string;
     createdAt: string;
+    announcementAlertsEnabled: boolean;
+    eventAlertsEnabled: boolean;
   } | null;
 };
 
@@ -97,3 +102,7 @@ export type EventCreateResponse = {
 };
 
 export type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'monthly';
+
+export type UsersResponse = {
+  users: User[];
+};

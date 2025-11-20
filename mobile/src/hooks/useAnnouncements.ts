@@ -106,6 +106,11 @@ export function useAnnouncements(token: string | null) {
     try {
       setSaving(true);
       setError(null);
+      // Helpful for debugging submission failures in Metro logs
+      console.log('[useAnnouncements] submitting announcement', {
+        hasToken: Boolean(token),
+        bodyLength: draft.trim().length,
+      });
       const response = await fetch(`${SERVER_URL}/api/announcements`, {
         method: 'POST',
         headers: {
@@ -115,6 +120,7 @@ export function useAnnouncements(token: string | null) {
         body: JSON.stringify({ message: draft.trim() }),
       });
 
+      console.log('[useAnnouncements] announcement response', response.status);
       if (!response.ok) {
         throw new Error(`Request failed (${response.status})`);
       }
@@ -122,7 +128,9 @@ export function useAnnouncements(token: string | null) {
       const data = (await response.json()) as AnnouncementCreateResponse;
       setAnnouncements((prev) => [data.announcement, ...prev]);
       setDraft('');
+      console.log('[useAnnouncements] announcement saved', data.announcement.id);
     } catch (err) {
+      console.error('[useAnnouncements] failed to save announcement', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       throw err;
     } finally {

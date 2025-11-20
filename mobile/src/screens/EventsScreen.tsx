@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
+import { SelectField } from '../components/SelectField';
 import { colors, radii, spacing } from '../styles/theme';
 import { Event, RecurrenceRule, WorkingGroup } from '../types';
 
@@ -221,38 +221,19 @@ export function EventsScreen({
                 <Feather name={attendingOnly ? 'check-square' : 'square'} size={18} color={colors.text} />
                 <Text style={styles.checkboxLabel}>Events I&apos;m attending</Text>
               </TouchableOpacity>
-              <View style={styles.groupPicker}>
-                <Text style={styles.groupPickerLabel}>Working group</Text>
-                {Platform.OS === 'web' ? (
-                  <View style={styles.webInputWrapper}>
-                    <select
-                      value={filterGroupId ?? 0}
-                      onChange={(e) => setFilterGroupId(Number(e.target.value) === 0 ? null : Number(e.target.value))}
-                      style={styles.webSelect as unknown as React.CSSProperties}
-                    >
-                      <option value={0}>All groups</option>
-                      {groups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                  </View>
-                ) : (
-                  <View style={styles.pickerWrapper}>
-                    <Picker
-                      selectedValue={filterGroupId ?? 0}
-                      style={styles.picker}
-                      onValueChange={(value) => setFilterGroupId(value === 0 ? null : Number(value))}
-                    >
-                      <Picker.Item label="All groups" value={0} />
-                      {groups.map((group) => (
-                        <Picker.Item key={group.id} label={group.name} value={group.id} />
-                      ))}
-                    </Picker>
-                  </View>
-                )}
-              </View>
+              <SelectField
+                label="Working group"
+                value={filterGroupId ?? 0}
+                placeholder="All groups"
+                options={[
+                  { label: 'All groups', value: 0 },
+                  ...groups.map((group) => ({ label: group.name, value: group.id })),
+                ]}
+                onValueChange={(selected) => {
+                  const numericValue = Number(selected);
+                  setFilterGroupId(numericValue === 0 ? null : numericValue);
+                }}
+              />
               {isAdmin ? (
                 <PrimaryButton
                   label="Add event"
@@ -365,50 +346,43 @@ export function EventsScreen({
                     onChangeText={(value) => setFormState((prev) => ({ ...prev, location: value }))}
                     placeholder="123 Main St or https://discord.gg/..."
                   />
-                  <View style={styles.groupPicker}>
-                    <Text style={styles.groupPickerLabel}>Working group</Text>
-                    {Platform.OS === 'web' ? (
-                      <View style={styles.webInputWrapper}>
-                        <select
-                          value={formState.workingGroupId}
-                          onChange={(e) => setFormState((prev) => ({ ...prev, workingGroupId: Number(e.target.value) }))}
-                          style={styles.webSelect as unknown as React.CSSProperties}
-                        >
-                          <option value={0}>Select a working group</option>
-                          {groups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                      </View>
-                    ) : (
-                      <View style={styles.pickerWrapper}>
-                        <Picker
-                          selectedValue={formState.workingGroupId}
-                          style={styles.picker}
-                        onValueChange={(value) => setFormState((prev) => ({ ...prev, workingGroupId: Number(value) }))}
-                      >
-                        <Picker.Item label="Select a working group" value={0} />
-                        {groups.map((group) => (
-                          <Picker.Item key={group.id} label={group.name} value={group.id} />
-                        ))}
-                      </Picker>
-                    </View>
-                    )}
-                    {!groups.length ? (
-                      <Text style={styles.groupHint}>Create a working group first to associate this event.</Text>
-                    ) : (
-                      <Text style={styles.groupHint}>
-                        {selectedGroup ? `Selected: ${selectedGroup.name}` : 'Choose the sponsoring working group.'}
-                      </Text>
-                    )}
-                  </View>
+                  <SelectField
+                    label="Working group"
+                    value={formState.workingGroupId}
+                    placeholder="Select a working group"
+                    options={[
+                      { label: 'Select a working group', value: 0 },
+                      ...groups.map((group) => ({ label: group.name, value: group.id })),
+                    ]}
+                    onValueChange={(selected) =>
+                      setFormState((prev) => ({ ...prev, workingGroupId: Number(selected) }))
+                    }
+                    disabled={!groups.length}
+                    helperText={
+                      !groups.length
+                        ? 'Create a working group first to associate this event.'
+                        : selectedGroup
+                        ? `Selected: ${selectedGroup.name}`
+                        : 'Choose the sponsoring working group.'
+                    }
+                  />
                   <View style={styles.seriesToggle}>
                     <TouchableOpacity
                       style={styles.checkboxRow}
                       activeOpacity={0.85}
-                      onPress={() => setIsSeries((prev) => !prev)}
+                      onPress={() => {
+                        setIsSeries((prev) => {
+                          const next = !prev;
+                          if (next && recurrence === 'none') {
+                            setRecurrence('weekly');
+                          }
+                          if (!next) {
+                            setRecurrence('none');
+                            setSeriesEndAt('');
+                          }
+                          return next;
+                        });
+                      }}
                     >
                       <Feather name={isSeries ? 'check-square' : 'square'} size={18} color={colors.text} />
                       <Text style={styles.checkboxLabel}>Make series</Text>
@@ -439,32 +413,17 @@ export function EventsScreen({
                             </TouchableOpacity>
                           )}
                         </View>
-                        <Text style={styles.groupPickerLabel}>Repeat</Text>
-                        {Platform.OS === 'web' ? (
-                          <View style={styles.webInputWrapper}>
-                            <select
-                              value={recurrence}
-                              onChange={(e) => setRecurrence(e.target.value as RecurrenceRule)}
-                              style={styles.webSelect as unknown as React.CSSProperties}
-                            >
-                              <option value="daily">Daily</option>
-                              <option value="weekly">Weekly</option>
-                              <option value="monthly">Monthly</option>
-                            </select>
-                          </View>
-                        ) : (
-                          <View style={styles.pickerWrapper}>
-                            <Picker
-                              selectedValue={recurrence}
-                              style={styles.picker}
-                              onValueChange={(value) => setRecurrence(value as RecurrenceRule)}
-                            >
-                              <Picker.Item label="Daily" value="daily" />
-                              <Picker.Item label="Weekly" value="weekly" />
-                              <Picker.Item label="Monthly" value="monthly" />
-                            </Picker>
-                          </View>
-                        )}
+                        <SelectField
+                          label="Repeat"
+                          value={recurrence === 'none' ? '' : recurrence}
+                          placeholder="Select cadence"
+                          options={[
+                            { label: 'Daily', value: 'daily' },
+                            { label: 'Weekly', value: 'weekly' },
+                            { label: 'Monthly', value: 'monthly' },
+                          ]}
+                          onValueChange={(value) => setRecurrence(value as RecurrenceRule)}
+                        />
                       </View>
                     ) : null}
                   </View>
@@ -785,10 +744,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
-  groupHint: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
   list: {
     gap: spacing.md,
     marginTop: spacing.sm,
@@ -943,20 +898,6 @@ const styles = StyleSheet.create({
   filterPanel: {
     gap: spacing.sm,
   },
-  pickerWrapper: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: spacing.md,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  picker: {
-    height: 44,
-    width: '100%',
-  },
   pickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -989,15 +930,6 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     outlineWidth: 0,
     backgroundColor: 'transparent',
-  },
-  webSelect: {
-    width: '100%',
-    height: 36,
-    fontSize: 14,
-    color: colors.text,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    outlineWidth: 0,
   },
   seriesToggle: {
     gap: spacing.xs,

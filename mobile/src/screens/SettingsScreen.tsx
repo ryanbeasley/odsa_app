@@ -1,34 +1,39 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import appConfig from '../../app.json';
 import { SectionCard } from '../components/SectionCard';
 import { colors, radii, spacing } from '../styles/theme';
 import { User } from '../types';
 
 type SettingsScreenProps = {
-  user: User;
+  accountUser: User;
   onLogout: () => void;
   onToggleAdmin: () => void;
   canToggleAdmin: boolean;
   isAdminView: boolean;
   notificationsEnabled: boolean;
+  eventNotificationsEnabled: boolean;
   notificationsLoading: boolean;
   notificationsError: string | null;
   onToggleNotifications: () => void;
+  onToggleEventNotifications: () => void;
+  onNavigateUpdateProfile: () => void;
+  onNavigateUserDirectory: () => void;
 };
 
-const appVersion = (appConfig as { expo?: { version?: string } }).expo?.version ?? '1.0.0';
-
 export function SettingsScreen({
-  user,
+  accountUser,
   onLogout,
   onToggleAdmin,
   canToggleAdmin,
   isAdminView,
   notificationsEnabled,
+  eventNotificationsEnabled,
   notificationsLoading,
   notificationsError,
   onToggleNotifications,
+  onToggleEventNotifications,
+  onNavigateUpdateProfile,
+  onNavigateUserDirectory,
 }: SettingsScreenProps) {
   const baseRoleLabel = canToggleAdmin ? 'Admin' : 'Member';
   const viewStatus = isAdminView ? 'Admin view' : 'Member view';
@@ -47,32 +52,46 @@ export function SettingsScreen({
               </View>
               <View style={styles.summaryCopy}>
                 <Text style={styles.summaryLabel}>Signed in as</Text>
-                <Text style={styles.summaryValue}>{user.email}</Text>
+                <Text style={styles.summaryValue}>{accountUser.email}</Text>
+                {accountUser.firstName || accountUser.lastName ? (
+                  <Text style={styles.summaryDetail}>
+                    {[accountUser.firstName, accountUser.lastName].filter(Boolean).join(' ')}
+                  </Text>
+                ) : null}
               </View>
               <Text style={styles.badge}>{baseRoleLabel}</Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryIcon}>
-                <Feather name="eye" size={18} color={colors.text} />
-              </View>
-              <View style={styles.summaryCopy}>
-                <Text style={styles.summaryLabel}>Current view</Text>
-                <Text style={styles.summaryValue}>
-                  {isAdminView
-                    ? 'You are seeing admin-only tools.'
-                    : 'Viewing as a member to mirror their experience.'}
-                </Text>
-              </View>
-              {canToggleAdmin ? (
+            {canToggleAdmin ? (
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryIcon}>
+                  <Feather name="eye" size={18} color={colors.text} />
+                </View>
+                <View style={styles.summaryCopy}>
+                  <Text style={styles.summaryLabel}>Current view</Text>
+                  <Text style={styles.summaryValue}>
+                    {isAdminView
+                      ? 'You are seeing admin-only tools.'
+                      : 'Viewing as a member to mirror their experience.'}
+                  </Text>
+                </View>
                 <Text style={[styles.badge, !isAdminView && styles.badgeMuted]}>{viewStatus}</Text>
-              ) : (
-                <Text style={[styles.badge, styles.badgeMuted]}>Member</Text>
-              )}
-            </View>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.navPanel}>
+            <TouchableOpacity style={styles.navItem} onPress={onNavigateUpdateProfile} activeOpacity={0.8}>
+              <View style={styles.navItemContent}>
+                <Feather name="edit-3" size={18} color={colors.text} />
+                <View style={styles.navTextGroup}>
+                  <Text style={styles.navLabel}>Update user information</Text>
+                  <Text style={styles.navDescription}>Update your contact info so organizers can reach you.</Text>
+                </View>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+
             {canToggleAdmin ? (
               <TouchableOpacity style={styles.navItem} onPress={onToggleAdmin} activeOpacity={0.8}>
                 <View style={styles.navItemContent}>
@@ -86,9 +105,20 @@ export function SettingsScreen({
                 </View>
                 <Text style={[styles.statusBadge, !isAdminView && styles.statusBadgeMuted]}>{viewStatus}</Text>
               </TouchableOpacity>
-            ) : (
-              <Text style={styles.lockedCopy}>Admin-only controls are hidden for members.</Text>
-            )}
+            ) : null}
+
+            {canToggleAdmin ? (
+              <TouchableOpacity style={styles.navItem} onPress={onNavigateUserDirectory} activeOpacity={0.8}>
+                <View style={styles.navItemContent}>
+                  <Feather name="users" size={18} color={colors.text} />
+                  <View style={styles.navTextGroup}>
+                    <Text style={styles.navLabel}>Users</Text>
+                    <Text style={styles.navDescription}>Review members and promote trusted organizers.</Text>
+                  </View>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </SectionCard>
 
@@ -117,25 +147,33 @@ export function SettingsScreen({
                 {notificationsLoading ? '...' : notificationsEnabled ? 'On' : 'Off'}
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.navItem} onPress={onToggleEventNotifications} activeOpacity={0.8}>
+              <View style={styles.navItemContent}>
+                <Feather
+                  name={eventNotificationsEnabled ? 'check-square' : 'square'}
+                  size={18}
+                  color={colors.text}
+                />
+                <View style={styles.navTextGroup}>
+                  <Text style={styles.navLabel}>Event alerts</Text>
+                  <Text style={styles.navDescription}>
+                    Receive day-of and one-hour reminders for events you&apos;re attending.
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.statusBadge, !eventNotificationsEnabled && styles.statusBadgeMuted]}>
+                {notificationsLoading ? '...' : eventNotificationsEnabled ? 'On' : 'Off'}
+              </Text>
+            </TouchableOpacity>
             {notificationsError ? <Text style={styles.errorText}>{notificationsError}</Text> : null}
           </View>
         </SectionCard>
 
         <SectionCard style={styles.section}>
-          <Text style={styles.sectionLabel}>App info & session</Text>
-          <Text style={styles.sectionDescription}>Version details and logout.</Text>
+          <Text style={styles.sectionLabel}>Session</Text>
+          <Text style={styles.sectionDescription}>Sign out when you&apos;re done organizing on this device.</Text>
 
           <View style={styles.navPanel}>
-            <View style={styles.navItem}>
-              <View style={styles.navItemContent}>
-                <Feather name="smartphone" size={18} color={colors.text} />
-                <View style={styles.navTextGroup}>
-                  <Text style={styles.navLabel}>App version</Text>
-                  <Text style={styles.navDescription}>You are running {appVersion}.</Text>
-                </View>
-              </View>
-            </View>
-
             <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={onLogout} activeOpacity={0.8}>
               <View style={styles.navItemContent}>
                 <Feather name="log-out" size={18} color={colors.error} />
@@ -237,12 +275,6 @@ const styles = StyleSheet.create({
   logoutLabel: {
     color: colors.error,
   },
-  lockedCopy: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-    paddingVertical: spacing.md,
-  },
   summaryCard: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -280,6 +312,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     fontWeight: '600',
+  },
+  summaryDetail: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
   badge: {
     paddingHorizontal: spacing.sm,

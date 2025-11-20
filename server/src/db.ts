@@ -42,6 +42,8 @@ db.prepare(
   `CREATE TABLE IF NOT EXISTS push_subscriptions (
     user_id INTEGER PRIMARY KEY,
     token TEXT NOT NULL,
+    announcement_alerts_enabled INTEGER NOT NULL DEFAULT 1,
+    event_alerts_enabled INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )`
@@ -97,6 +99,18 @@ db.prepare(
   )`
 ).run();
 
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS event_notification_logs (
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    notification_type TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (event_id, user_id, notification_type),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`
+).run();
+
 type GreetingRow = { message: string };
 type AnnouncementRow = { id: number; body: string; created_at: string };
 export type SupportLinkRow = {
@@ -107,7 +121,13 @@ export type SupportLinkRow = {
   position: number;
   created_at: string;
 };
-export type PushSubscriptionRow = { user_id: number; token: string; created_at: string };
+export type PushSubscriptionRow = {
+  user_id: number;
+  token: string;
+  announcement_alerts_enabled: number;
+  event_alerts_enabled: number;
+  created_at: string;
+};
 export type WebPushSubscriptionRow = {
   id: number;
   user_id: number;
@@ -142,6 +162,16 @@ export type EventAttendeeRow = {
   created_at: string;
 };
 
+export type EventAlertCandidateRow = {
+  event_id: number;
+  event_name: string;
+  start_at: string;
+  user_id: number;
+  token: string;
+};
+
+export type EventNotificationType = 'day-of' | 'hour-before';
+
 const supportLinksColumns = db.prepare<[], { name: string }>('PRAGMA table_info(support_links)').all();
 const hasPosition = supportLinksColumns.some((col) => col.name === 'position');
 if (!hasPosition) {
@@ -163,6 +193,17 @@ if (!hasEndAt) {
     const fallback = event.start_at && event.start_at.trim() ? event.start_at : new Date().toISOString();
     db.prepare<[string, number]>('UPDATE events SET end_at = ? WHERE id = ?').run(fallback, event.id);
   });
+}
+
+const pushColumns = db.prepare<[], { name: string }>('PRAGMA table_info(push_subscriptions)').all();
+const hasAnnouncementAlerts = pushColumns.some((col) => col.name === 'announcement_alerts_enabled');
+if (!hasAnnouncementAlerts) {
+  db.prepare('ALTER TABLE push_subscriptions ADD COLUMN announcement_alerts_enabled INTEGER NOT NULL DEFAULT 1').run();
+}
+const pushColumnsUpdated = db.prepare<[], { name: string }>('PRAGMA table_info(push_subscriptions)').all();
+const hasEventAlerts = pushColumnsUpdated.some((col) => col.name === 'event_alerts_enabled');
+if (!hasEventAlerts) {
+  db.prepare('ALTER TABLE push_subscriptions ADD COLUMN event_alerts_enabled INTEGER NOT NULL DEFAULT 0').run();
 }
 const hasSeriesUuid = eventColumns.some((col) => col.name === 'series_uuid');
 if (!hasSeriesUuid) {
@@ -229,9 +270,23 @@ db.prepare(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('user', 'admin'))
+    role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
+    first_name TEXT,
+    last_name TEXT,
+    phone TEXT
   )`
 ).run();
+
+const userColumns = db.prepare<[], { name: string }>('PRAGMA table_info(users)').all();
+if (!userColumns.some((col) => col.name === 'first_name')) {
+  db.prepare('ALTER TABLE users ADD COLUMN first_name TEXT').run();
+}
+if (!userColumns.some((col) => col.name === 'last_name')) {
+  db.prepare('ALTER TABLE users ADD COLUMN last_name TEXT').run();
+}
+if (!userColumns.some((col) => col.name === 'phone')) {
+  db.prepare('ALTER TABLE users ADD COLUMN phone TEXT').run();
+}
 
 export type Role = 'user' | 'admin';
 
@@ -240,6 +295,9 @@ export interface UserRow {
   email: string;
   password_hash: string;
   role: Role;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
 }
 
 export type { AnnouncementRow };
@@ -323,10 +381,29 @@ export function reorderSupportLinks(ids: number[]): SupportLinkRow[] {
   return listSupportLinks();
 }
 
-export function upsertPushSubscription(userId: number, token: string): PushSubscriptionRow {
-  db.prepare<[number, string]>(
-    'INSERT INTO push_subscriptions (user_id, token) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET token = excluded.token'
-  ).run(userId, token);
+export function upsertPushSubscription(
+  userId: number,
+  token: string,
+  options?: { announcementAlertsEnabled?: boolean; eventAlertsEnabled?: boolean }
+): PushSubscriptionRow {
+  const existing = findPushSubscriptionByUserId(userId);
+  const announcementEnabled =
+    typeof options?.announcementAlertsEnabled === 'boolean'
+      ? Number(options.announcementAlertsEnabled)
+      : existing?.announcement_alerts_enabled ?? 1;
+  const eventEnabled =
+    typeof options?.eventAlertsEnabled === 'boolean'
+      ? Number(options.eventAlertsEnabled)
+      : existing?.event_alerts_enabled ?? 0;
+
+  db.prepare<[number, string, number, number]>(
+    `INSERT INTO push_subscriptions (user_id, token, announcement_alerts_enabled, event_alerts_enabled)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+      token = excluded.token,
+      announcement_alerts_enabled = excluded.announcement_alerts_enabled,
+      event_alerts_enabled = excluded.event_alerts_enabled`
+  ).run(userId, token, announcementEnabled, eventEnabled);
 
   return db
     .prepare<[number], PushSubscriptionRow>('SELECT * FROM push_subscriptions WHERE user_id = ?')
@@ -388,6 +465,49 @@ export function findWebPushSubscriptionByEndpoint(endpoint: string): WebPushSubs
   return db
     .prepare<[string], WebPushSubscriptionRow>('SELECT * FROM web_push_subscriptions WHERE endpoint = ?')
     .get(endpoint);
+}
+
+export function listEventAlertCandidates(hoursAhead = 24): EventAlertCandidateRow[] {
+  const clampedHours = Math.max(1, hoursAhead);
+  const window = `+${clampedHours} hours`;
+  return db
+    .prepare<[string], EventAlertCandidateRow>(
+      `SELECT
+        e.id as event_id,
+        e.name as event_name,
+        e.start_at as start_at,
+        ea.user_id as user_id,
+        ps.token as token
+      FROM event_attendees ea
+      INNER JOIN events e ON e.id = ea.event_id
+      INNER JOIN push_subscriptions ps ON ps.user_id = ea.user_id
+      WHERE ps.event_alerts_enabled = 1
+        AND e.start_at IS NOT NULL
+        AND datetime(e.start_at) >= datetime('now')
+        AND datetime(e.start_at) <= datetime('now', ?)`
+    )
+    .all(window);
+}
+
+export function hasEventNotificationLog(
+  eventId: number,
+  userId: number,
+  notificationType: EventNotificationType
+): boolean {
+  const existing = db
+    .prepare<[number, number, string]>('SELECT 1 FROM event_notification_logs WHERE event_id = ? AND user_id = ? AND notification_type = ?')
+    .get(eventId, userId, notificationType);
+  return Boolean(existing);
+}
+
+export function recordEventNotificationLog(
+  eventId: number,
+  userId: number,
+  notificationType: EventNotificationType
+): void {
+  db.prepare<[number, number, string]>(
+    'INSERT OR IGNORE INTO event_notification_logs (event_id, user_id, notification_type) VALUES (?, ?, ?)'
+  ).run(eventId, userId, notificationType);
 }
 
 export function listWorkingGroups(): WorkingGroupRow[] {
@@ -564,12 +684,59 @@ export function createUser(email: string, passwordHash: string, role: Role): Use
     )
     .run(email, passwordHash, role);
 
-  return {
-    id: Number(info.lastInsertRowid),
-    email,
-    password_hash: passwordHash,
-    role,
-  };
+  return findUserById(Number(info.lastInsertRowid)) as UserRow;
+}
+
+export function listUsers(search?: string): UserRow[] {
+  if (search?.trim()) {
+    const term = `%${search.trim().toLowerCase()}%`;
+    return db
+      .prepare<[string, string, string], UserRow>(
+        `SELECT * FROM users
+         WHERE LOWER(email) LIKE ?
+            OR LOWER(COALESCE(first_name, '')) LIKE ?
+            OR LOWER(COALESCE(last_name, '')) LIKE ?
+         ORDER BY email ASC`
+      )
+      .all(term, term, term);
+  }
+
+  return db.prepare<[], UserRow>('SELECT * FROM users ORDER BY email ASC').all();
+}
+
+export function updateUserProfile(
+  id: number,
+  updates: { email?: string; first_name?: string | null; last_name?: string | null; phone?: string | null }
+): UserRow | undefined {
+  const fields: string[] = [];
+  const values: (string | number | null)[] = [];
+  if (updates.email !== undefined) {
+    fields.push('email = ?');
+    values.push(updates.email);
+  }
+  if (updates.first_name !== undefined) {
+    fields.push('first_name = ?');
+    values.push(updates.first_name);
+  }
+  if (updates.last_name !== undefined) {
+    fields.push('last_name = ?');
+    values.push(updates.last_name);
+  }
+  if (updates.phone !== undefined) {
+    fields.push('phone = ?');
+    values.push(updates.phone);
+  }
+  if (!fields.length) {
+    return findUserById(id);
+  }
+  values.push(id);
+  db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return findUserById(id);
+}
+
+export function updateUserRole(id: number, role: Role): UserRow | undefined {
+  db.prepare<[Role, number]>('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+  return findUserById(id);
 }
 
 const seedAdminEmail = process.env.ADMIN_EMAIL;

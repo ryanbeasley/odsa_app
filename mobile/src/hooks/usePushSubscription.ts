@@ -3,17 +3,27 @@ import { registerForPushNotifications } from '../utils/pushNotifications';
 import { SERVER_URL } from '../config';
 import { PushSubscriptionStatusResponse } from '../types';
 
+type SubscriptionState = PushSubscriptionStatusResponse['subscription'];
+
 export function usePushSubscription(token: string | null) {
-  const [enabled, setEnabled] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionState>(null);
+  const [announcementEnabled, setAnnouncementEnabled] = useState(false);
+  const [eventEnabled, setEventEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const resetState = useCallback(() => {
+    setSubscription(null);
+    setAnnouncementEnabled(false);
+    setEventEnabled(false);
+    setError(null);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const loadStatus = async () => {
       if (!token) {
-        setEnabled(false);
-        setError(null);
+        resetState();
         setLoading(false);
         return;
       }
@@ -25,15 +35,15 @@ export function usePushSubscription(token: string | null) {
             Authorization: `Bearer ${token}`,
           },
         });
-
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
           throw new Error(body?.error ?? `Request failed (${response.status})`);
         }
-
         const data = (await response.json()) as PushSubscriptionStatusResponse;
         if (!cancelled) {
-          setEnabled(Boolean(data.subscription));
+          setSubscription(data.subscription);
+          setAnnouncementEnabled(Boolean(data.subscription?.announcementAlertsEnabled));
+          setEventEnabled(Boolean(data.subscription?.eventAlertsEnabled));
         }
       } catch (err) {
         if (!cancelled) {
@@ -51,40 +61,79 @@ export function usePushSubscription(token: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, resetState]);
 
-  const enable = useCallback(async () => {
-    if (!token) {
-      return;
-    }
-    try {
-      setLoading(true);
-      setError(null);
-      const expoToken = await registerForPushNotifications();
+  const savePreferences = useCallback(
+    async (prefs: { announcement?: boolean; event?: boolean }) => {
+      if (!token) {
+        throw new Error('You must be signed in to manage notifications.');
+      }
+      let pushToken = subscription?.token;
+      if (!pushToken) {
+        pushToken = await registerForPushNotifications();
+      }
+      const announcementValue =
+        typeof prefs.announcement === 'boolean' ? prefs.announcement : announcementEnabled;
+      const eventValue = typeof prefs.event === 'boolean' ? prefs.event : eventEnabled;
       const response = await fetch(`${SERVER_URL}/api/push-subscriptions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ token: expoToken }),
+        body: JSON.stringify({
+          token: pushToken,
+          announcementAlertsEnabled: announcementValue,
+          eventAlertsEnabled: eventValue,
+        }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body?.error ?? `Request failed (${response.status})`);
       }
-      setEnabled(true);
+      const data = (await response.json()) as PushSubscriptionStatusResponse;
+      setSubscription(data.subscription);
+      setAnnouncementEnabled(Boolean(data.subscription?.announcementAlertsEnabled));
+      setEventEnabled(Boolean(data.subscription?.eventAlertsEnabled));
+    },
+    [announcementEnabled, eventEnabled, subscription, token]
+  );
+
+  const toggleAnnouncements = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      await savePreferences({ announcement: !announcementEnabled });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
-      setEnabled(false);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [announcementEnabled, savePreferences, token]);
+
+  const toggleEventAlerts = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      await savePreferences({ event: !eventEnabled });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [eventEnabled, savePreferences, token]);
 
   const disable = useCallback(async () => {
     if (!token) {
+      resetState();
       return;
     }
     try {
@@ -100,22 +149,23 @@ export function usePushSubscription(token: string | null) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body?.error ?? `Request failed (${response.status})`);
       }
-      setEnabled(false);
+      resetState();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [resetState, token]);
 
   return {
-    enabled,
+    announcementEnabled,
+    eventEnabled,
     loading,
     error,
-    setEnabled,
     setError,
-    enable,
+    toggleAnnouncements,
+    toggleEventAlerts,
     disable,
   };
 }

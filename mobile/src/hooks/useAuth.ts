@@ -127,6 +127,36 @@ export function useAuth() {
     }
   }, []);
 
+  const updateProfile = useCallback(
+    async (payload: { firstName?: string | null; lastName?: string | null; phone?: string | null; email?: string }) => {
+      if (!token) {
+        throw new Error('You must be signed in to update your profile.');
+      }
+      const response = await fetch(`${SERVER_URL}/api/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          firstName: payload.firstName ?? undefined,
+          lastName: payload.lastName ?? undefined,
+          phone: payload.phone ?? undefined,
+          email: payload.email ?? undefined,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error ?? 'Failed to update profile');
+      }
+      const data = (await response.json()) as AuthResponse;
+      setToken(data.token);
+      setSessionUser(data.user);
+      return data.user;
+    },
+    [token]
+  );
+
   const effectiveUser: User | null = sessionUser
     ? viewAsMember && sessionUser.role === 'admin'
       ? { ...sessionUser, role: 'user' as Role }
@@ -149,5 +179,6 @@ export function useAuth() {
     logout,
     toggleAdminMode,
     setAuthError,
+    updateProfile,
   };
 }

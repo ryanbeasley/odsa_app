@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Hero } from './src/components/Hero';
 import { BottomNav, TabKey } from './src/components/BottomNav';
@@ -10,6 +11,8 @@ import { EventsScreen } from './src/screens/EventsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SupportDetailsScreen } from './src/screens/SupportDetailsScreen';
 import { WorkingGroupsScreen } from './src/screens/WorkingGroupsScreen';
+import { UpdateProfileScreen } from './src/screens/UpdateProfileScreen';
+import { UserManagementScreen } from './src/screens/UserManagementScreen';
 import { useAuth } from './src/hooks/useAuth';
 import { useAnnouncements } from './src/hooks/useAnnouncements';
 import { usePushSubscription } from './src/hooks/usePushSubscription';
@@ -21,8 +24,10 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('announcements');
   const [attendingOnly, setAttendingOnly] = useState(false);
+  const [settingsView, setSettingsView] = useState<'main' | 'profile' | 'users'>('main');
 
   const {
     user,
@@ -37,6 +42,7 @@ export default function App() {
     toggleAdminMode,
     isSessionAdmin,
     isViewingAsAdmin,
+    updateProfile,
   } = useAuth();
 
   const {
@@ -53,12 +59,13 @@ export default function App() {
     loadMoreAnnouncements,
   } = useAnnouncements(token);
   const {
-    enabled: pushEnabled,
+    announcementEnabled: announcementNotificationsEnabled,
+    eventEnabled: eventNotificationsEnabled,
     loading: pushLoading,
     error: pushError,
-    setEnabled: setPushEnabled,
     setError: setPushError,
-    enable: enablePush,
+    toggleAnnouncements: toggleAnnouncementNotifications,
+    toggleEventAlerts: toggleEventNotifications,
     disable: disablePush,
   } = usePushSubscription(token);
   const {
@@ -89,6 +96,12 @@ export default function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (activeTab !== 'settings') {
+      setSettingsView('main');
+    }
+  }, [activeTab]);
+
   const isAdmin = isViewingAsAdmin;
   const canSave = Boolean(isAdmin && draft.trim() && !saving);
 
@@ -102,9 +115,18 @@ export default function App() {
     setPassword(value);
   };
 
+  const handleConfirmPasswordChange = (value: string) => {
+    setAuthError(null);
+    setConfirmPassword(value);
+  };
+
   const handleAuthSubmit = async () => {
     if (!email.trim() || password.trim().length < 6) {
       setAuthError('Enter a valid email and password (6+ chars).');
+      return;
+    }
+    if (authMode === 'signup' && password !== confirmPassword) {
+      setAuthError('Passwords do not match.');
       return;
     }
 
@@ -112,6 +134,7 @@ export default function App() {
       await authenticate(authMode, { email, password });
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
     } catch {
       // error state already handled inside hook
     }
@@ -127,10 +150,11 @@ export default function App() {
     logout();
     setError(null);
     setDraft('');
+    setConfirmPassword('');
     setPushError(null);
-    setPushEnabled(false);
     setGroupsError(null);
     setEventsError(null);
+    setSettingsView('main');
   };
 
   const handleToggleNotifications = async () => {
@@ -139,14 +163,44 @@ export default function App() {
     }
     try {
       setPushError(null);
-      if (pushEnabled) {
-        await disablePush();
-      } else {
-        await enablePush();
-      }
+      await toggleAnnouncementNotifications();
     } catch {
       // error handled in hook
     }
+  };
+
+  const handleToggleEventNotifications = async () => {
+    if (!token || pushLoading) {
+      return;
+    }
+    try {
+      setPushError(null);
+      await toggleEventNotifications();
+    } catch {
+      // error handled in hook
+    }
+  };
+
+  const handleOpenProfileSettings = () => {
+    setSettingsView('profile');
+  };
+
+  const handleOpenUserDirectory = () => {
+    setSettingsView('users');
+  };
+
+  const handleCloseSettingsView = () => {
+    setSettingsView('main');
+  };
+
+  const handleSubmitProfile = async (values: {
+    firstName?: string | null;
+    lastName?: string | null;
+    phone?: string | null;
+    email?: string;
+  }) => {
+    await updateProfile(values);
+    setSettingsView('main');
   };
 
   const handleSaveAnnouncement = async () => {
@@ -290,17 +344,39 @@ export default function App() {
           />
         );
       case 'settings':
+        if (settingsView === 'profile') {
+          return (
+            <UpdateProfileScreen
+              user={(sessionUser ?? user)!}
+              onSubmit={handleSubmitProfile}
+              onCancel={handleCloseSettingsView}
+            />
+          );
+        }
+        if (settingsView === 'users') {
+          return (
+            <UserManagementScreen
+              token={token}
+              currentUserId={sessionUser?.id ?? 0}
+              onBack={handleCloseSettingsView}
+            />
+          );
+        }
         return (
           <SettingsScreen
-            user={user}
+            accountUser={(sessionUser ?? user)!}
             onLogout={handleLogout}
             onToggleAdmin={toggleAdminMode}
             canToggleAdmin={isSessionAdmin}
             isAdminView={isViewingAsAdmin}
-            notificationsEnabled={pushEnabled}
+            notificationsEnabled={announcementNotificationsEnabled}
+            eventNotificationsEnabled={eventNotificationsEnabled}
             notificationsLoading={pushLoading}
             notificationsError={pushError}
             onToggleNotifications={handleToggleNotifications}
+            onToggleEventNotifications={handleToggleEventNotifications}
+            onNavigateUpdateProfile={handleOpenProfileSettings}
+            onNavigateUserDirectory={handleOpenUserDirectory}
           />
         );
       case 'home':
@@ -322,11 +398,13 @@ export default function App() {
               mode={authMode}
               email={email}
               password={password}
+              confirmPassword={confirmPassword}
               authError={authError}
               authLoading={authLoading}
               googleLoading={googleLoading}
               onChangeEmail={handleEmailChange}
               onChangePassword={handlePasswordChange}
+              onChangeConfirmPassword={handleConfirmPasswordChange}
               onSubmit={handleAuthSubmit}
               onGoogleSignIn={googleSignIn}
               onToggleMode={() => {

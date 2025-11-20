@@ -28,6 +28,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: config.name ?? baseConfig.name ?? 'ODSA Mobile',
     slug: config.slug ?? baseConfig.slug ?? 'odsa-mobile',
     notification,
+    plugins: Array.from(
+      new Set([...(baseConfig.plugins ?? []), ...(config.plugins ?? []), 'expo-router'])
+    ),
     extra: {
       ...(baseConfig.extra ?? {}),
       ...(config.extra ?? {}),

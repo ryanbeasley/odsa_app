@@ -7,6 +7,10 @@ export async function registerForPushNotifications() {
     throw new Error('Expo push tokens are not available on web builds. Use browser push with VAPID keys instead.');
   }
 
+  if (Constants.appOwnership === 'expo') {
+    throw new Error('Push notifications are unavailable in Expo Go. Please build a development client to test.');
+  }
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
   if (existingStatus !== 'granted') {
