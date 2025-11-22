@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Hero } from './src/components/Hero';
 import { BottomNav, TabKey } from './src/components/BottomNav';
@@ -19,6 +19,7 @@ import { usePushSubscription } from './src/hooks/usePushSubscription';
 import { useWorkingGroups } from './src/hooks/useWorkingGroups';
 import { useEvents } from './src/hooks/useEvents';
 import { colors } from './src/styles/theme';
+import { RecurrenceRule } from './src/types';
 
 export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -31,6 +32,7 @@ export default function App() {
 
   const {
     user,
+    sessionUser,
     token,
     authLoading,
     authError,
@@ -242,6 +244,9 @@ export default function App() {
     startAt: string;
     endAt: string;
     location: string;
+    recurrence?: RecurrenceRule;
+    seriesEndAt?: string | null;
+    monthlyPattern?: 'date' | 'weekday';
   }) => {
     try {
       setEventsError(null);
@@ -260,6 +265,9 @@ export default function App() {
       startAt: string;
       endAt: string;
       location: string;
+      recurrence?: RecurrenceRule;
+      seriesEndAt?: string | null;
+      monthlyPattern?: 'date' | 'weekday';
     }
   ) => {
     try {
@@ -388,7 +396,8 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       {!user ? (
         <ScrollView contentContainerStyle={styles.scroll}>
@@ -426,7 +435,8 @@ export default function App() {
           </View>
         </View>
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -39,6 +39,7 @@ type EventsScreenProps = {
     location: string;
     recurrence?: RecurrenceRule;
     seriesEndAt?: string | null;
+    monthlyPattern?: 'date' | 'weekday';
   }) => Promise<void>;
   onUpdate: (id: number, payload: {
     name: string;
@@ -49,6 +50,7 @@ type EventsScreenProps = {
     location: string;
     recurrence?: RecurrenceRule;
     seriesEndAt?: string | null;
+    monthlyPattern?: 'date' | 'weekday';
   }) => Promise<void>;
   onToggleAttendance: (eventId: number, options: { series: boolean; attending: boolean }) => Promise<void>;
 };
@@ -80,8 +82,11 @@ export function EventsScreen({
   const [isSeries, setIsSeries] = useState(false);
   const [seriesEndAt, setSeriesEndAt] = useState('');
   const [recurrence, setRecurrence] = useState<RecurrenceRule>('none');
-  const [activePicker, setActivePicker] = useState<'start' | 'end' | null>(null);
+  const [monthlyPattern, setMonthlyPattern] = useState<'date' | 'weekday'>('date');
+  type PickerField = 'startAt' | 'endAt' | 'seriesEndAt';
+  const [pickerField, setPickerField] = useState<PickerField | null>(null);
   const [pickerValue, setPickerValue] = useState<Date>(new Date());
+  const [pickerVisible, setPickerVisible] = useState(false);
   const [search, setSearch] = useState('');
   const [filterGroupId, setFilterGroupId] = useState<number | null>(null);
   const [seriesPrompt, setSeriesPrompt] = useState<{ eventId: number; attending: boolean } | null>(null);
@@ -112,6 +117,7 @@ export function EventsScreen({
         location: formState.location.trim(),
         recurrence: isSeries ? recurrence : 'none',
         seriesEndAt: isSeries && seriesEndAt ? seriesEndAt.trim() : null,
+        monthlyPattern: isSeries && recurrence === 'monthly' ? monthlyPattern : undefined,
       };
       if (editingId) {
         await onUpdate(editingId, payload);
@@ -123,6 +129,7 @@ export function EventsScreen({
       setIsSeries(false);
       setSeriesEndAt('');
       setRecurrence('none');
+      setMonthlyPattern('date');
       setShowForm(false);
       onRefresh();
     } catch {
@@ -146,10 +153,35 @@ export function EventsScreen({
 
   const selectedGroup = groups.find((g) => g.id === formState.workingGroupId);
 
-  const handlePickDate = (field: 'startAt' | 'endAt') => {
-    const current = formState[field] ? new Date(formState[field]) : new Date();
-    setPickerValue(current);
-    setActivePicker(field === 'startAt' ? 'start' : 'end');
+  const openPicker = (field: PickerField) => {
+    const currentValue = (() => {
+      if (field === 'seriesEndAt') {
+        return seriesEndAt ? new Date(seriesEndAt) : new Date();
+      }
+      const raw = formState[field];
+      return raw ? new Date(raw) : new Date();
+    })();
+    setPickerValue(currentValue);
+    setPickerField(field);
+    setPickerVisible(true);
+  };
+
+  const closePicker = () => {
+    setPickerVisible(false);
+    setPickerField(null);
+  };
+
+  const applyPickerValue = () => {
+    if (!pickerField) {
+      return;
+    }
+    const iso = pickerValue.toISOString();
+    if (pickerField === 'seriesEndAt') {
+      setSeriesEndAt(iso);
+    } else {
+      setFormState((prev) => ({ ...prev, [pickerField]: iso }));
+    }
+    closePicker();
   };
 
   const toLocalInputValue = (value: string) => {
@@ -160,34 +192,6 @@ export function EventsScreen({
     const offsetMs = date.getTimezoneOffset() * 60000;
     const local = new Date(date.getTime() - offsetMs);
     return local.toISOString().slice(0, 16);
-  };
-
-  const handleDateChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (event.type === 'dismissed') {
-      setActivePicker(null);
-      return;
-    }
-    if (date && activePicker) {
-      const iso = date.toISOString();
-      setFormState((prev) => ({
-        ...prev,
-        [activePicker === 'start' ? 'startAt' : 'endAt']: iso,
-      }));
-      setActivePicker(null);
-    }
-  };
-
-  const handleInlineDateChange = (field: 'startAt' | 'endAt') => (event: DateTimePickerEvent, date?: Date) => {
-    if (event.type === 'dismissed') {
-      return;
-    }
-    if (date) {
-      const iso = date.toISOString();
-      setFormState((prev) => ({
-        ...prev,
-        [field]: iso,
-      }));
-    }
   };
 
   return (
@@ -244,6 +248,7 @@ export function EventsScreen({
                     setIsSeries(false);
                     setSeriesEndAt('');
                     setRecurrence('none');
+                    setMonthlyPattern('date');
                   }}
                 />
               ) : null}
@@ -255,12 +260,13 @@ export function EventsScreen({
               <TouchableOpacity
                 style={styles.adminToggle}
                 onPress={() => {
-                  setShowForm(false);
-                  setEditingId(null);
-                  setIsSeries(false);
-                  setSeriesEndAt('');
-                  setRecurrence('none');
-                }}
+                    setShowForm(false);
+                    setEditingId(null);
+                    setIsSeries(false);
+                    setSeriesEndAt('');
+                    setRecurrence('none');
+                    setMonthlyPattern('date');
+                  }}
                 activeOpacity={0.85}
               >
                 <View style={styles.adminToggleContent}>
@@ -308,7 +314,7 @@ export function EventsScreen({
                         style={styles.webDateInput as unknown as React.CSSProperties}
                       />
                     ) : (
-                      <TouchableOpacity style={styles.pickerButton} onPress={() => handlePickDate('startAt')}>
+                      <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('startAt')}>
                         <Feather name="calendar" size={16} color={colors.text} />
                         <Text style={styles.pickerButtonLabel}>Select start</Text>
                       </TouchableOpacity>
@@ -334,7 +340,7 @@ export function EventsScreen({
                         style={styles.webDateInput as unknown as React.CSSProperties}
                       />
                     ) : (
-                      <TouchableOpacity style={styles.pickerButton} onPress={() => handlePickDate('endAt')}>
+                      <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('endAt')}>
                         <Feather name="clock" size={16} color={colors.text} />
                         <Text style={styles.pickerButtonLabel}>Select end</Text>
                       </TouchableOpacity>
@@ -370,19 +376,20 @@ export function EventsScreen({
                     <TouchableOpacity
                       style={styles.checkboxRow}
                       activeOpacity={0.85}
-                      onPress={() => {
-                        setIsSeries((prev) => {
-                          const next = !prev;
-                          if (next && recurrence === 'none') {
-                            setRecurrence('weekly');
-                          }
-                          if (!next) {
-                            setRecurrence('none');
-                            setSeriesEndAt('');
-                          }
-                          return next;
-                        });
-                      }}
+                    onPress={() => {
+                      setIsSeries((prev) => {
+                        const next = !prev;
+                        if (next && recurrence === 'none') {
+                          setRecurrence('weekly');
+                        }
+                        if (!next) {
+                          setRecurrence('none');
+                          setSeriesEndAt('');
+                          setMonthlyPattern('date');
+                        }
+                        return next;
+                      });
+                    }}
                     >
                       <Feather name={isSeries ? 'check-square' : 'square'} size={18} color={colors.text} />
                       <Text style={styles.checkboxLabel}>Make series</Text>
@@ -403,16 +410,16 @@ export function EventsScreen({
                           ) : (
                             <TouchableOpacity
                               style={styles.pickerButton}
-                              onPress={() => {
-                                setPickerValue(seriesEndAt ? new Date(seriesEndAt) : new Date());
-                                setActivePicker('end');
-                              }}
+                              onPress={() => openPicker('seriesEndAt')}
                             >
                               <Feather name="calendar" size={16} color={colors.text} />
                               <Text style={styles.pickerButtonLabel}>Select series end</Text>
                             </TouchableOpacity>
                           )}
                         </View>
+                        {seriesEndAt ? (
+                          <Text style={styles.groupHint}>Ends {formatTimestamp(seriesEndAt)}</Text>
+                        ) : null}
                         <SelectField
                           label="Repeat"
                           value={recurrence === 'none' ? '' : recurrence}
@@ -422,8 +429,60 @@ export function EventsScreen({
                             { label: 'Weekly', value: 'weekly' },
                             { label: 'Monthly', value: 'monthly' },
                           ]}
-                          onValueChange={(value) => setRecurrence(value as RecurrenceRule)}
+                          onValueChange={(value) => {
+                            setRecurrence(value as RecurrenceRule);
+                            if (value !== 'monthly') {
+                              setMonthlyPattern('date');
+                            }
+                          }}
                         />
+                        {recurrence === 'monthly' ? (
+                          <View style={styles.monthlyPatternWrapper}>
+                            <Text style={styles.groupPickerLabel}>Monthly pattern</Text>
+                            <View style={styles.monthlyOptions}>
+                              <TouchableOpacity
+                                style={[
+                                  styles.monthlyOption,
+                                  monthlyPattern === 'date' && styles.monthlyOptionActive,
+                                ]}
+                                activeOpacity={0.85}
+                                onPress={() => setMonthlyPattern('date')}
+                              >
+                                <Feather
+                                  name={monthlyPattern === 'date' ? 'check-circle' : 'circle'}
+                                  size={18}
+                                  color={colors.text}
+                                />
+                                <View style={styles.monthlyOptionCopy}>
+                                  <Text style={styles.monthlyOptionLabel}>Same calendar date</Text>
+                                  <Text style={styles.monthlyOptionDescription}>
+                                    {formatMonthlyDateLabel(formState.startAt)}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[
+                                  styles.monthlyOption,
+                                  monthlyPattern === 'weekday' && styles.monthlyOptionActive,
+                                ]}
+                                activeOpacity={0.85}
+                                onPress={() => setMonthlyPattern('weekday')}
+                              >
+                                <Feather
+                                  name={monthlyPattern === 'weekday' ? 'check-circle' : 'circle'}
+                                  size={18}
+                                  color={colors.text}
+                                />
+                                <View style={styles.monthlyOptionCopy}>
+                                  <Text style={styles.monthlyOptionLabel}>Same weekday pattern</Text>
+                                  <Text style={styles.monthlyOptionDescription}>
+                                    {formatMonthlyWeekdayLabel(formState.startAt)}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : null}
                       </View>
                     ) : null}
                   </View>
@@ -547,6 +606,7 @@ export function EventsScreen({
                           setIsSeries(Boolean(event.seriesUuid));
                           setSeriesEndAt(event.seriesEndAt ?? '');
                           setRecurrence((event.recurrence as RecurrenceRule) ?? 'none');
+                          setMonthlyPattern('date');
                           setEditingId(event.id);
                           setShowForm(true);
                         }}
@@ -609,28 +669,28 @@ export function EventsScreen({
         </SectionCard>
       </ScrollView>
       {Platform.OS === 'web' && seriesPrompt ? (
-                <Modal transparent animationType="fade" visible onRequestClose={() => setSeriesPrompt(null)}>
-                  <View style={styles.modalBackdrop}>
-                    <View style={styles.modalCard}>
-                      <Text style={styles.modalTitle}>{seriesPrompt.attending ? 'Cancel attendance' : 'Sign up for series'}</Text>
-                      <Text style={styles.modalMessage}>Apply to this event only or all in the series?</Text>
-                      <View style={styles.modalActions}>
-                        <SecondaryButton
-                          label={seriesPrompt.attending ? 'This event' : 'This event only'}
-                          onPress={() => {
-                            void onToggleAttendance(seriesPrompt.eventId, { series: false, attending: seriesPrompt.attending });
-                            setSeriesPrompt(null);
-                          }}
-                          style={styles.modalButton}
-                        />
-                        <PrimaryButton
-                          label={seriesPrompt.attending ? 'All events' : 'All in series'}
-                          onPress={() => {
-                            void onToggleAttendance(seriesPrompt.eventId, { series: true, attending: seriesPrompt.attending });
-                            setSeriesPrompt(null);
-                          }}
-                          style={styles.modalButton}
-                        />
+        <Modal transparent animationType="fade" visible onRequestClose={() => setSeriesPrompt(null)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>{seriesPrompt.attending ? 'Cancel attendance' : 'Sign up for series'}</Text>
+              <Text style={styles.modalMessage}>Apply to this event only or all in the series?</Text>
+              <View style={styles.modalActions}>
+                <SecondaryButton
+                  label={seriesPrompt.attending ? 'This event' : 'This event only'}
+                  onPress={() => {
+                    void onToggleAttendance(seriesPrompt.eventId, { series: false, attending: seriesPrompt.attending });
+                    setSeriesPrompt(null);
+                  }}
+                  style={styles.modalButton}
+                />
+                <PrimaryButton
+                  label={seriesPrompt.attending ? 'All events' : 'All in series'}
+                  onPress={() => {
+                    void onToggleAttendance(seriesPrompt.eventId, { series: true, attending: seriesPrompt.attending });
+                    setSeriesPrompt(null);
+                  }}
+                  style={styles.modalButton}
+                />
               </View>
               <TouchableOpacity style={styles.modalClose} onPress={() => setSeriesPrompt(null)}>
                 <Text style={styles.modalCloseText}>Cancel</Text>
@@ -639,13 +699,33 @@ export function EventsScreen({
           </View>
         </Modal>
       ) : null}
-      {activePicker && Platform.OS !== 'web' ? (
-        <DateTimePicker
-          value={pickerValue}
-          mode="datetime"
-          display="default"
-          onChange={handleDateChange}
-        />
+      {Platform.OS !== 'web' ? (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={pickerVisible}
+          onRequestClose={closePicker}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Select date &amp; time</Text>
+              <DateTimePicker
+                value={pickerValue}
+                mode="datetime"
+                display={Platform.OS === 'ios' ? 'inline' : 'spinner'}
+                onChange={(_, date) => {
+                  if (date) {
+                    setPickerValue(date);
+                  }
+                }}
+              />
+              <View style={styles.modalActions}>
+                <SecondaryButton label="Cancel" onPress={closePicker} style={styles.modalButton} />
+                <PrimaryButton label="Save" onPress={applyPickerValue} style={styles.modalButton} />
+              </View>
+            </View>
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -662,6 +742,44 @@ function formatTimestamp(value: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(date);
+}
+
+function formatMonthlyDateLabel(startAt?: string) {
+  if (!startAt) {
+    return 'Select a start date first.';
+  }
+  const date = new Date(startAt);
+  if (Number.isNaN(date.getTime())) {
+    return 'Select a valid start date first.';
+  }
+  const day = date.getDate();
+  return `Repeats on the ${getOrdinal(day)} each month`;
+}
+
+function formatMonthlyWeekdayLabel(startAt?: string) {
+  if (!startAt) {
+    return 'Select a start date first.';
+  }
+  const date = new Date(startAt);
+  if (Number.isNaN(date.getTime())) {
+    return 'Select a valid start date first.';
+  }
+  const weekIndex = Math.ceil(date.getDate() / 7);
+  const weekday = weekdayNames[date.getDay()];
+  return `Repeats on the ${getOrdinalWord(weekIndex)} ${weekday} each month`;
+}
+
+const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function getOrdinal(value: number) {
+  const suffixes: Record<number, string> = { 1: 'st', 2: 'nd', 3: 'rd' };
+  const v = value % 100;
+  return `${value}${suffixes[v] ?? suffixes[v % 10] ?? 'th'}`;
+}
+
+function getOrdinalWord(index: number) {
+  const words = ['first', 'second', 'third', 'fourth', 'fifth'];
+  return words[index - 1] ?? `${index}th`;
 }
 
 const styles = StyleSheet.create({
@@ -743,6 +861,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.text,
+  },
+  groupHint: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   list: {
     gap: spacing.md,
@@ -947,6 +1069,39 @@ const styles = StyleSheet.create({
   },
   seriesControls: {
     gap: spacing.sm,
+  },
+  monthlyPatternWrapper: {
+    gap: spacing.sm,
+  },
+  monthlyOptions: {
+    gap: spacing.xs,
+  },
+  monthlyOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+  },
+  monthlyOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: '#f0f5ff',
+  },
+  monthlyOptionCopy: {
+    flex: 1,
+    gap: spacing.xs / 2,
+  },
+  monthlyOptionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  monthlyOptionDescription: {
+    fontSize: 13,
+    color: colors.textMuted,
   },
   modalBackdrop: {
     flex: 1,

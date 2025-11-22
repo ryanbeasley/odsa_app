@@ -1,0 +1,70 @@
+import { db } from '../db/connection';
+import { Role, UserRow } from '../types';
+
+export function findUserByEmail(email: string): UserRow | undefined {
+  return db.prepare<[string], UserRow>('SELECT * FROM users WHERE email = ?').get(email);
+}
+
+export function findUserById(id: number): UserRow | undefined {
+  return db.prepare<[number], UserRow>('SELECT * FROM users WHERE id = ?').get(id);
+}
+
+export function createUser(email: string, passwordHash: string, role: Role): UserRow {
+  const info = db
+    .prepare<[string, string, Role]>('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
+    .run(email, passwordHash, role);
+
+  return findUserById(Number(info.lastInsertRowid)) as UserRow;
+}
+
+export function listUsers(search?: string): UserRow[] {
+  if (search?.trim()) {
+    const term = `%${search.trim().toLowerCase()}%`;
+    return db
+      .prepare<[string, string, string], UserRow>(
+        `SELECT * FROM users
+         WHERE LOWER(email) LIKE ?
+            OR LOWER(COALESCE(first_name, '')) LIKE ?
+            OR LOWER(COALESCE(last_name, '')) LIKE ?
+         ORDER BY email ASC`
+      )
+      .all(term, term, term);
+  }
+
+  return db.prepare<[], UserRow>('SELECT * FROM users ORDER BY email ASC').all();
+}
+
+export function updateUserProfile(
+  id: number,
+  updates: { email?: string; first_name?: string | null; last_name?: string | null; phone?: string | null }
+): UserRow | undefined {
+  const fields: string[] = [];
+  const values: (string | number | null)[] = [];
+  if (updates.email !== undefined) {
+    fields.push('email = ?');
+    values.push(updates.email);
+  }
+  if (updates.first_name !== undefined) {
+    fields.push('first_name = ?');
+    values.push(updates.first_name);
+  }
+  if (updates.last_name !== undefined) {
+    fields.push('last_name = ?');
+    values.push(updates.last_name);
+  }
+  if (updates.phone !== undefined) {
+    fields.push('phone = ?');
+    values.push(updates.phone);
+  }
+  if (!fields.length) {
+    return findUserById(id);
+  }
+  values.push(id);
+  db.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  return findUserById(id);
+}
+
+export function updateUserRole(id: number, role: Role): UserRow | undefined {
+  db.prepare<[Role, number]>('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+  return findUserById(id);
+}

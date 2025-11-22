@@ -11,6 +11,7 @@ type EventPayload = {
   location: string;
   recurrence?: RecurrenceRule;
   seriesEndAt?: string | null;
+  monthlyPattern?: 'date' | 'weekday';
 };
 
 export function useEvents(token: string | null) {
