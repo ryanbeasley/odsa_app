@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -12,30 +12,19 @@ import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
-import { colors, radii, spacing } from '../styles/theme';
-import { WorkingGroup } from '../types';
+import { colors } from '../styles/theme';
+import { styles } from './WorkingGroupsScreen.styles';
+import { useAppData } from '../providers/AppDataProvider';
+import { useAuth } from '../hooks/useAuth';
 
-type WorkingGroupsScreenProps = {
-  groups: WorkingGroup[];
-  loading: boolean;
-  saving: boolean;
-  error: string | null;
-  isAdmin: boolean;
-  onRefresh: () => void;
-  onCreate: (payload: { name: string; description: string; members: string }) => Promise<void>;
-  onUpdate: (id: number, payload: { name: string; description: string; members: string }) => Promise<void>;
-};
-
-export function WorkingGroupsScreen({
-  groups,
-  loading,
-  saving,
-  error,
-  isAdmin,
-  onRefresh,
-  onCreate,
-  onUpdate,
-}: WorkingGroupsScreenProps) {
+export function WorkingGroupsScreen() {
+  const { groups: groupsState } = useAppData();
+  const { isViewingAsAdmin } = useAuth();
+  const groups = groupsState.groups;
+  const loading = groupsState.loading;
+  const saving = groupsState.saving;
+  const error = groupsState.error;
+  const isAdmin = isViewingAsAdmin;
   const [showForm, setShowForm] = useState(false);
   const [formState, setFormState] = useState({ name: '', description: '', members: '' });
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -55,9 +44,9 @@ export function WorkingGroupsScreen({
         members: formState.members.trim(),
       };
       if (editingId) {
-        await onUpdate(editingId, payload);
+        await groupsState.updateGroup(editingId, payload);
       } else {
-        await onCreate(payload);
+        await groupsState.createGroup(payload);
       }
       handleResetForm();
     } catch {
@@ -69,6 +58,23 @@ export function WorkingGroupsScreen({
     setFormState({ name: '', description: '', members: '' });
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const handleDeleteGroup = (id: number, name: string) => {
+    Alert.alert(
+      'Delete working group',
+      `Deleting "${name}" will also remove all of its events. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void groupsState.deleteGroup(id);
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -150,22 +156,32 @@ export function WorkingGroupsScreen({
                   <Text style={styles.groupMembersLabel}>Committee members</Text>
                   <Text style={styles.groupMembers}>{group.members}</Text>
                   {isAdmin ? (
-                    <TouchableOpacity
-                      style={styles.editButton}
-                      onPress={() => {
-                        setFormState({
-                          name: group.name,
-                          description: group.description,
-                          members: group.members,
-                        });
-                        setEditingId(group.id);
-                        setShowForm(true);
-                      }}
-                      activeOpacity={0.85}
-                    >
-                      <Feather name="edit-2" size={14} color={colors.text} />
-                      <Text style={styles.editLabel}>Edit</Text>
-                    </TouchableOpacity>
+                    <View style={styles.groupActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => {
+                          setFormState({
+                            name: group.name,
+                            description: group.description,
+                            members: group.members,
+                          });
+                          setEditingId(group.id);
+                          setShowForm(true);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Feather name="edit-2" size={14} color={colors.text} />
+                        <Text style={styles.editLabel}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.editButton, styles.deleteButton]}
+                        onPress={() => handleDeleteGroup(group.id, group.name)}
+                        activeOpacity={0.85}
+                      >
+                        <Feather name="trash-2" size={14} color={colors.error} />
+                        <Text style={[styles.editLabel, styles.deleteLabel]}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
                   ) : null}
                 </View>
               ))}
@@ -190,131 +206,3 @@ function formatTimestamp(value: string) {
     year: 'numeric',
   }).format(date);
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: spacing.xl * 2,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  sectionDescription: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  adminPanel: {
-    gap: spacing.sm,
-  },
-  adminToggle: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceAlt,
-  },
-  adminToggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  adminToggleLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  form: {
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceAlt,
-  },
-  textArea: {
-    minHeight: 72,
-    textAlignVertical: 'top',
-  },
-  formActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-  },
-  formButton: {
-    flex: 1,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 13,
-  },
-  groupList: {
-    gap: spacing.md,
-  },
-  groupItem: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    gap: spacing.xs,
-  },
-  groupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  groupName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  groupDate: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  groupDescription: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  groupMembersLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  groupMembers: {
-    fontSize: 14,
-    color: colors.text,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  editLabel: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  emptyState: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-});

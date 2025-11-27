@@ -1,0 +1,43 @@
+import { ReactNode } from 'react';
+import { Slot } from 'expo-router';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { View, StyleSheet } from 'react-native';
+import { colors } from '../src/styles/theme';
+import { AuthProvider, useAuth } from '../src/hooks/useAuth';
+import { AuthFlow } from '../src/screens/AuthFlow';
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <AuthProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.container}>
+            <AuthGate>
+              <Slot />
+            </AuthGate>
+          </View>
+        </SafeAreaView>
+      </AuthProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  if (!user) {
+    return <AuthFlow />;
+  }
+  return <>{children}</>;
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  container: {
+    flex: 1,
+  },
+});

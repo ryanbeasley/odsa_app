@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
-import { colors, radii, spacing } from '../styles/theme';
+import { colors } from '../styles/theme';
 import { SERVER_URL } from '../config';
 import { User } from '../types';
+import { styles } from './UserManagementScreen.styles';
+import { useAuth } from '../hooks/useAuth';
 
-type UserManagementScreenProps = {
-  token: string | null;
-  currentUserId: number;
-  onBack: () => void;
-};
-
-export function UserManagementScreen({ token, currentUserId, onBack }: UserManagementScreenProps) {
+export function UserManagementScreen() {
+  const auth = useAuth();
+  const router = useRouter();
+  const token = auth.token;
+  const currentUserId = auth.sessionUser?.id ?? 0;
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +96,7 @@ export function UserManagementScreen({ token, currentUserId, onBack }: UserManag
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <SectionCard style={styles.section}>
-          <TouchableOpacity style={styles.backRow} onPress={onBack} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.backRow} onPress={() => router.back()} activeOpacity={0.85}>
             <Feather name="arrow-left" size={18} color={colors.text} />
             <Text style={styles.backLabel}>Back to settings</Text>
           </TouchableOpacity>
@@ -156,95 +157,3 @@ export function UserManagementScreen({ token, currentUserId, onBack }: UserManag
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    paddingBottom: spacing.xl,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  backLabel: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  description: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  error: {
-    color: colors.error,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tableHeaderText: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    color: colors.textMuted,
-  },
-  tableBody: {
-    gap: spacing.xs,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    gap: spacing.sm,
-  },
-  emailColumn: {
-    flex: 1,
-  },
-  adminColumn: {
-    width: 80,
-    textAlign: 'right',
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs / 2,
-  },
-  emailText: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  nameText: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  selfText: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  emptyState: {
-    fontSize: 14,
-    color: colors.textMuted,
-    padding: spacing.md,
-  },
-});

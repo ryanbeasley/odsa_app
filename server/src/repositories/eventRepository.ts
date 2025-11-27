@@ -131,6 +131,10 @@ export function listEventsBySeries(seriesUuid: string): EventRow[] {
     .all(seriesUuid);
 }
 
+export function deleteEventsByWorkingGroup(workingGroupId: number): void {
+  db.prepare<[number]>('DELETE FROM events WHERE working_group_id = ?').run(workingGroupId);
+}
+
 export function addEventAttendee(userId: number, eventId: number): EventAttendeeRow {
   db.prepare<[number, number]>('INSERT OR IGNORE INTO event_attendees (user_id, event_id) VALUES (?, ?)').run(
     userId,

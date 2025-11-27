@@ -1,42 +1,47 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { SectionCard } from '../components/SectionCard';
-import { colors, radii, spacing } from '../styles/theme';
-import { User } from '../types';
+import { colors } from '../styles/theme';
+import { styles } from './SettingsScreen.styles';
+import { useAuth } from '../hooks/useAuth';
+import { useAppData } from '../providers/AppDataProvider';
+import { useLogoutHandler } from '../hooks/useLogoutHandler';
 
-type SettingsScreenProps = {
-  accountUser: User;
-  onLogout: () => void;
-  onToggleAdmin: () => void;
-  canToggleAdmin: boolean;
-  isAdminView: boolean;
-  notificationsEnabled: boolean;
-  eventNotificationsEnabled: boolean;
-  notificationsLoading: boolean;
-  notificationsError: string | null;
-  onToggleNotifications: () => void;
-  onToggleEventNotifications: () => void;
-  onNavigateUpdateProfile: () => void;
-  onNavigateUserDirectory: () => void;
-};
-
-export function SettingsScreen({
-  accountUser,
-  onLogout,
-  onToggleAdmin,
-  canToggleAdmin,
-  isAdminView,
-  notificationsEnabled,
-  eventNotificationsEnabled,
-  notificationsLoading,
-  notificationsError,
-  onToggleNotifications,
-  onToggleEventNotifications,
-  onNavigateUpdateProfile,
-  onNavigateUserDirectory,
-}: SettingsScreenProps) {
+export function SettingsScreen() {
+  const auth = useAuth();
+  const router = useRouter();
+  const { push } = useAppData();
+  const handleLogout = useLogoutHandler();
+  const accountUser = (auth.sessionUser ?? auth.user)!;
+  const canToggleAdmin = auth.isSessionAdmin;
+  const isAdminView = auth.isViewingAsAdmin;
   const baseRoleLabel = canToggleAdmin ? 'Admin' : 'Member';
   const viewStatus = isAdminView ? 'Admin view' : 'Member view';
+
+  const handleToggleNotifications = async () => {
+    if (push.loading) {
+      return;
+    }
+    try {
+      push.setError(null);
+      await push.toggleAnnouncements();
+    } catch {
+      // handled downstream
+    }
+  };
+
+  const handleToggleEventNotifications = async () => {
+    if (push.loading) {
+      return;
+    }
+    try {
+      push.setError(null);
+      await push.toggleEventAlerts();
+    } catch {
+      // handled downstream
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -81,7 +86,11 @@ export function SettingsScreen({
           </View>
 
           <View style={styles.navPanel}>
-            <TouchableOpacity style={styles.navItem} onPress={onNavigateUpdateProfile} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.navItem}
+              onPress={() => router.push('/tabs/settings/profile')}
+              activeOpacity={0.8}
+            >
               <View style={styles.navItemContent}>
                 <Feather name="edit-3" size={18} color={colors.text} />
                 <View style={styles.navTextGroup}>
@@ -93,7 +102,7 @@ export function SettingsScreen({
             </TouchableOpacity>
 
             {canToggleAdmin ? (
-              <TouchableOpacity style={styles.navItem} onPress={onToggleAdmin} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.navItem} onPress={auth.toggleAdminMode} activeOpacity={0.8}>
                 <View style={styles.navItemContent}>
                   <Feather name="refresh-cw" size={18} color={colors.text} />
                   <View style={styles.navTextGroup}>
@@ -108,7 +117,11 @@ export function SettingsScreen({
             ) : null}
 
             {canToggleAdmin ? (
-              <TouchableOpacity style={styles.navItem} onPress={onNavigateUserDirectory} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => router.push('/tabs/settings/users')}
+                activeOpacity={0.8}
+              >
                 <View style={styles.navItemContent}>
                   <Feather name="users" size={18} color={colors.text} />
                   <View style={styles.navTextGroup}>
@@ -127,30 +140,30 @@ export function SettingsScreen({
           <Text style={styles.sectionDescription}>Enable push alerts when new announcements are posted.</Text>
 
           <View style={styles.navPanel}>
-            <TouchableOpacity style={styles.navItem} onPress={onToggleNotifications} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.navItem} onPress={handleToggleNotifications} activeOpacity={0.8}>
               <View style={styles.navItemContent}>
                 <Feather
-                  name={notificationsEnabled ? 'check-square' : 'square'}
+                  name={push.announcementEnabled ? 'check-square' : 'square'}
                   size={18}
                   color={colors.text}
                 />
                 <View style={styles.navTextGroup}>
                   <Text style={styles.navLabel}>Announcement alerts</Text>
                   <Text style={styles.navDescription}>
-                    {notificationsEnabled
+                    {push.announcementEnabled
                       ? 'You will get a push notification for new announcements.'
                       : 'Stay informed when admins post updates.'}
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.statusBadge, !notificationsEnabled && styles.statusBadgeMuted]}>
-                {notificationsLoading ? '...' : notificationsEnabled ? 'On' : 'Off'}
+              <Text style={[styles.statusBadge, !push.announcementEnabled && styles.statusBadgeMuted]}>
+                {push.loading ? '...' : push.announcementEnabled ? 'On' : 'Off'}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={onToggleEventNotifications} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.navItem} onPress={handleToggleEventNotifications} activeOpacity={0.8}>
               <View style={styles.navItemContent}>
                 <Feather
-                  name={eventNotificationsEnabled ? 'check-square' : 'square'}
+                  name={push.eventEnabled ? 'check-square' : 'square'}
                   size={18}
                   color={colors.text}
                 />
@@ -161,11 +174,11 @@ export function SettingsScreen({
                   </Text>
                 </View>
               </View>
-              <Text style={[styles.statusBadge, !eventNotificationsEnabled && styles.statusBadgeMuted]}>
-                {notificationsLoading ? '...' : eventNotificationsEnabled ? 'On' : 'Off'}
+              <Text style={[styles.statusBadge, !push.eventEnabled && styles.statusBadgeMuted]}>
+                {push.loading ? '...' : push.eventEnabled ? 'On' : 'Off'}
               </Text>
             </TouchableOpacity>
-            {notificationsError ? <Text style={styles.errorText}>{notificationsError}</Text> : null}
+            {push.error ? <Text style={styles.errorText}>{push.error}</Text> : null}
           </View>
         </SectionCard>
 
@@ -174,7 +187,7 @@ export function SettingsScreen({
           <Text style={styles.sectionDescription}>Sign out when you&apos;re done organizing on this device.</Text>
 
           <View style={styles.navPanel}>
-            <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={onLogout} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={handleLogout} activeOpacity={0.8}>
               <View style={styles.navItemContent}>
                 <Feather name="log-out" size={18} color={colors.error} />
                 <Text style={[styles.navLabel, styles.logoutLabel]}>Log out</Text>
@@ -187,149 +200,3 @@ export function SettingsScreen({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: spacing.xl,
-    gap: spacing.lg,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  navPanel: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    minHeight: 120,
-  },
-  navItem: {
-    borderRadius: radii.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  navItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  navTextGroup: {
-    flex: 1,
-    gap: spacing.xs / 2,
-  },
-  navLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  navDescription: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    backgroundColor: colors.bannerMemberBg,
-    color: colors.bannerMemberText,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statusBadgeMuted: {
-    backgroundColor: colors.border,
-    color: colors.textMuted,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 13,
-  },
-  logoutItem: {
-    backgroundColor: colors.surface,
-    borderColor: colors.error,
-  },
-  logoutLabel: {
-    color: colors.error,
-  },
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  summaryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  summaryCopy: {
-    flex: 1,
-    gap: spacing.xs / 2,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  summaryValue: {
-    fontSize: 15,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  summaryDetail: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  badge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    backgroundColor: colors.bannerMemberBg,
-    color: colors.bannerMemberText,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  badgeMuted: {
-    backgroundColor: colors.border,
-    color: colors.textMuted,
-  },
-});

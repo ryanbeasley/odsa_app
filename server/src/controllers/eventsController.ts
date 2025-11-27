@@ -8,18 +8,20 @@ import {
   deleteEventAttendee,
   deleteEventById,
   deleteEventsBySeries,
+  deleteEventsByWorkingGroup,
   listEvents,
   listEventsBySeries,
   listUpcomingEvents,
   listUserEventIds,
   updateEvent,
-  findEventById,
+  findEventById
 } from '../repositories/eventRepository';
 import {
   createWorkingGroup,
   findWorkingGroupById,
   listWorkingGroups,
   updateWorkingGroup,
+  deleteWorkingGroup
 } from '../repositories/workingGroupRepository';
 import { serializeEvent, serializeWorkingGroup } from '../utils/serializer';
 import { MonthlyPattern, RecurrenceRule } from '../types';
@@ -68,6 +70,20 @@ router.patch('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   return res.json({ group: serializeWorkingGroup(updated) });
 });
 
+router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' });
+  }
+  const existing = findWorkingGroupById(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Working group not found' });
+  }
+  deleteEventsByWorkingGroup(id);
+  deleteWorkingGroup(id);
+  return res.status(204).send();
+});
+
 router.get('/events', authenticate, (req, res) => {
   const userId = (req as AuthedRequest).user?.id ?? null;
   const userEventIds = userId ? new Set(listUserEventIds(userId)) : new Set<number>();
@@ -112,6 +128,22 @@ router.get('/events', authenticate, (req, res) => {
   }));
 
   res.json({ events: response });
+});
+
+
+
+router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' });
+  }
+  const existing = findWorkingGroupById(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Working group not found' });
+  }
+  deleteEventsByWorkingGroup(id);
+  deleteWorkingGroup(id);
+  return res.status(204).send();
 });
 
 router.post('/events', authenticate, requireAdmin, (req, res) => {
@@ -181,6 +213,26 @@ router.patch('/events/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: 'id must be a positive number' });
+
+
+router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' });
+  }
+  const existing = findEventById(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
+  const { series } = req.body ?? {};
+  if (series && existing.series_uuid) {
+    deleteEventsBySeries(existing.series_uuid);
+  } else {
+    deleteEventById(id);
+  }
+  return res.status(204).send();
+});
+
   }
 
   const error = validateEvent(req.body);
@@ -270,6 +322,24 @@ router.patch('/events/:id', authenticate, requireAdmin, (req, res) => {
     location.trim()
   );
   res.json({ event: single ? serializeEvent({ ...single, working_group_name: workingGroup.name }) : null });
+});
+
+router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'id must be a positive number' });
+  }
+  const existing = findEventById(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
+  const { series } = req.body ?? {};
+  if (series && existing.series_uuid) {
+    deleteEventsBySeries(existing.series_uuid);
+  } else {
+    deleteEventById(id);
+  }
+  return res.status(204).send();
 });
 
 router.post('/events/:id/attendees', authenticate, (req: AuthedRequest, res) => {

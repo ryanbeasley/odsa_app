@@ -31,3 +31,7 @@ export function updateWorkingGroup(
 
   return db.prepare<[number], WorkingGroupRow>('SELECT * FROM working_groups WHERE id = ?').get(id);
 }
+
+export function deleteWorkingGroup(id: number): void {
+  db.prepare<[number]>('DELETE FROM working_groups WHERE id = ?').run(id);
+}

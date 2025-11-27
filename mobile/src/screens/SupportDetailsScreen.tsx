@@ -4,7 +4,6 @@ import {
   Alert,
   Linking,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -12,24 +11,24 @@ import {
 import { Feather } from '@expo/vector-icons';
 import appConfig from '../../app.json';
 import { SectionCard } from '../components/SectionCard';
-import { colors, radii, spacing } from '../styles/theme';
-import { User } from '../types';
+import { colors } from '../styles/theme';
 import { useSupportLinks } from '../hooks/useSupportLinks';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
-
-type SupportDetailsScreenProps = {
-  token: string | null;
-  onLogout: () => void;
-  canToggleAdmin: boolean;
-  isAdminView: boolean;
-  onToggleAdmin: () => void;
-};
+import { styles } from './SupportDetailsScreen.styles';
+import { useAuth } from '../hooks/useAuth';
+import { useLogoutHandler } from '../hooks/useLogoutHandler';
 
 const appVersion = (appConfig as { expo?: { version?: string } }).expo?.version ?? '1.0.0';
 
-export function SupportDetailsScreen({ token, onLogout, canToggleAdmin, isAdminView, onToggleAdmin }: SupportDetailsScreenProps) {
+export function SupportDetailsScreen() {
+  const auth = useAuth();
+  const handleLogout = useLogoutHandler();
+  const token = auth.token;
+  const canToggleAdmin = auth.isSessionAdmin;
+  const isAdminView = auth.isViewingAsAdmin;
+  const onToggleAdmin = auth.toggleAdminMode;
   const {
     links,
     loading: linksLoading,
@@ -250,7 +249,7 @@ export function SupportDetailsScreen({ token, onLogout, canToggleAdmin, isAdminV
               </View>
             </View>
 
-            <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={onLogout} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.navItem, styles.logoutItem]} onPress={handleLogout} activeOpacity={0.8}>
               <View style={styles.navItemContent}>
                 <Feather name="log-out" size={18} color={colors.error} />
                 <Text style={[styles.navLabel, styles.logoutLabel]}>Log out</Text>
@@ -310,220 +309,3 @@ export function SupportDetailsScreen({ token, onLogout, canToggleAdmin, isAdminV
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: spacing.xl,
-    gap: spacing.lg,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  navPanel: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    minHeight: 120,
-  },
-  navItem: {
-    borderRadius: radii.sm,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  navItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    flex: 1,
-  },
-  adminNavItem: {
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    justifyContent: 'flex-start',
-    gap: spacing.sm,
-  },
-  adminActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexWrap: 'wrap',
-  },
-  navTextGroup: {
-    flex: 1,
-    gap: spacing.xs / 2,
-  },
-  navLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  navDescription: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    backgroundColor: colors.bannerMemberBg,
-    color: colors.bannerMemberText,
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  statusBadgeMuted: {
-    backgroundColor: colors.border,
-    color: colors.textMuted,
-  },
-  logoutItem: {
-    backgroundColor: colors.surface,
-    borderColor: colors.error,
-  },
-  logoutLabel: {
-    color: colors.error,
-  },
-  lockedCopy: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textAlign: 'center',
-    paddingVertical: spacing.md,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 13,
-  },
-  summaryCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  summaryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  summaryCopy: {
-    flex: 1,
-    gap: spacing.xs / 2,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  summaryValue: {
-    fontSize: 15,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  badge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    backgroundColor: colors.bannerMemberBg,
-    color: colors.bannerMemberText,
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  badgeMuted: {
-    backgroundColor: colors.border,
-    color: colors.textMuted,
-  },
-  chipButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  chipLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  chipLabelMuted: {
-    color: colors.textMuted,
-  },
-  deleteChip: {
-    borderColor: colors.error,
-    backgroundColor: colors.surface,
-  },
-  deleteChipLabel: {
-    color: colors.error,
-  },
-  reorderChip: {
-    backgroundColor: colors.surfaceAlt,
-  },
-  editCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  multilineInput: {
-    minHeight: 64,
-  },
-  tinyButton: {
-    marginTop: spacing.xs,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tinyButtonLabel: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-});

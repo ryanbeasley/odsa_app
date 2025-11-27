@@ -1,74 +1,41 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
   Platform,
   ScrollView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Linking from 'expo-linking';
+import * as Clipboard from 'expo-clipboard'
+import { useLocalSearchParams } from 'expo-router';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
 import { SelectField } from '../components/SelectField';
-import { colors, radii, spacing } from '../styles/theme';
-import { Event, RecurrenceRule, WorkingGroup } from '../types';
+import { colors } from '../styles/theme';
+import { Event, RecurrenceRule } from '../types';
+import { styles } from './EventsScreen.styles';
+import { useAppData } from '../providers/AppDataProvider';
+import { useAuth } from '../hooks/useAuth';
 
-type EventsScreenProps = {
-  events: Event[];
-  groups: WorkingGroup[];
-  loading: boolean;
-  saving: boolean;
-  error: string | null;
-  isAdmin: boolean;
-  attendingOnly: boolean;
-  onToggleAttendingOnly: (value: boolean) => void;
-  onRefresh: () => void;
-  onCreate: (payload: {
-    name: string;
-    description: string;
-    workingGroupId: number;
-    startAt: string;
-    endAt: string;
-    location: string;
-    recurrence?: RecurrenceRule;
-    seriesEndAt?: string | null;
-    monthlyPattern?: 'date' | 'weekday';
-  }) => Promise<void>;
-  onUpdate: (id: number, payload: {
-    name: string;
-    description: string;
-    workingGroupId: number;
-    startAt: string;
-    endAt: string;
-    location: string;
-    recurrence?: RecurrenceRule;
-    seriesEndAt?: string | null;
-    monthlyPattern?: 'date' | 'weekday';
-  }) => Promise<void>;
-  onToggleAttendance: (eventId: number, options: { series: boolean; attending: boolean }) => Promise<void>;
-};
-
-export function EventsScreen({
-  events,
-  groups,
-  loading,
-  saving,
-  error,
-  isAdmin,
-  attendingOnly,
-  onToggleAttendingOnly,
-  onRefresh,
-  onCreate,
-  onUpdate,
-  onToggleAttendance,
-}: EventsScreenProps) {
+export function EventsScreen() {
+  const params = useLocalSearchParams<{ eventId?: string | string[]; seriesId?: string | string[] }>();
+  const { events: eventsState, groups: groupsState, eventFilters } = useAppData();
+  const { isViewingAsAdmin } = useAuth();
+  const events = eventsState.events;
+  const groups = groupsState.groups;
+  const loading = eventsState.loading;
+  const saving = eventsState.saving;
+  const error = eventsState.error;
+  const { attendingOnly, setAttendingOnly, focus, setFocus, clearFocus } = eventFilters;
+  const isAdmin = isViewingAsAdmin;
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formState, setFormState] = useState({
@@ -90,6 +57,23 @@ export function EventsScreen({
   const [search, setSearch] = useState('');
   const [filterGroupId, setFilterGroupId] = useState<number | null>(null);
   const [seriesPrompt, setSeriesPrompt] = useState<{ eventId: number; attending: boolean } | null>(null);
+
+  useEffect(() => {
+    const rawEvent = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
+    const rawSeries = Array.isArray(params.seriesId) ? params.seriesId[0] : params.seriesId;
+    if (rawEvent) {
+      const parsed = Number(rawEvent);
+      if (!Number.isNaN(parsed)) {
+        setFocus({ type: 'event', value: parsed });
+        setAttendingOnly(false);
+      }
+      return;
+    }
+    if (rawSeries) {
+      setFocus({ type: 'series', value: rawSeries });
+      setAttendingOnly(false);
+    }
+  }, [params.eventId, params.seriesId, setAttendingOnly, setFocus]);
 
   const canSubmit = useMemo(() => {
     return Boolean(
@@ -119,10 +103,11 @@ export function EventsScreen({
         seriesEndAt: isSeries && seriesEndAt ? seriesEndAt.trim() : null,
         monthlyPattern: isSeries && recurrence === 'monthly' ? monthlyPattern : undefined,
       };
+      eventsState.setError(null);
       if (editingId) {
-        await onUpdate(editingId, payload);
+        await eventsState.updateEvent(editingId, payload);
       } else {
-        await onCreate(payload);
+        await eventsState.createEvent(payload);
       }
       setFormState({ name: '', description: '', workingGroupId: 0, startAt: '', endAt: '', location: '' });
       setEditingId(null);
@@ -131,7 +116,7 @@ export function EventsScreen({
       setRecurrence('none');
       setMonthlyPattern('date');
       setShowForm(false);
-      onRefresh();
+      void eventsState.refresh();
     } catch {
       // error handled upstream
     }
@@ -140,18 +125,141 @@ export function EventsScreen({
   const filteredEvents = useMemo(() => {
     const now = Date.now();
     const query = search.trim().toLowerCase();
-    return events
+    const upcoming = events
       .filter((evt) => new Date(evt.endAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+    if (focus?.type === 'event') {
+      const targetId = focus.value;
+      return upcoming.filter(
+        (evt) =>
+          evt.id === targetId || evt.upcomingOccurrences?.some((occ) => occ.eventId === targetId) || false
+      );
+    }
+    if (focus?.type === 'series') {
+      return upcoming.filter((evt) => evt.seriesUuid === focus.value);
+    }
+
+    return upcoming
       .filter((evt) => (attendingOnly ? Boolean(evt.attending) : true))
       .filter((evt) => (filterGroupId ? evt.workingGroupId === filterGroupId : true))
       .filter((evt) => {
         if (!query) return true;
         return evt.name.toLowerCase().includes(query) || evt.description.toLowerCase().includes(query);
-      })
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  }, [events, filterGroupId, search, attendingOnly]);
+      });
+  }, [attendingOnly, events, filterGroupId, focus, search]);
 
   const selectedGroup = groups.find((g) => g.id === formState.workingGroupId);
+  const focusedDescriptor = useMemo(() => {
+    if (!focus) return null;
+    if (focus.type === 'event') {
+      const eventMatch =
+        events.find((evt) => evt.id === focus.value) ||
+        events.find((evt) => evt.upcomingOccurrences?.some((occ) => occ.eventId === focus.value));
+      return eventMatch ? `This view only shows "${eventMatch.name}".` : 'Showing shared event.';
+    }
+    if (focus.type === 'series') {
+      const eventMatch = events.find((evt) => evt.seriesUuid === focus.value);
+      return eventMatch ? `This view is limited to the "${eventMatch.name}" series.` : 'Showing shared series.';
+    }
+    return null;
+  }, [events, focus]);
+  const focusActive = Boolean(focus);
+
+  const handleDeletePrompt = (event: Event) => {
+    if (!isAdmin) {
+      return;
+    }
+    if (event.seriesUuid) {
+      Alert.alert(
+        'Delete event',
+        'Delete this single occurrence or the entire series?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'This event',
+            style: 'destructive',
+            onPress: () => {
+              void eventsState.deleteEvent(event.id, { series: false }).catch(() => {});
+            },
+          },
+          {
+            text: 'Entire series',
+            style: 'destructive',
+            onPress: () => {
+              void eventsState.deleteEvent(event.id, { series: true }).catch(() => {});
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert('Delete event', 'Are you sure you want to delete this event?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void eventsState.deleteEvent(event.id, { series: false }).catch(() => {});
+          },
+        },
+      ]);
+    }
+  };
+
+  const handleCopyLink = (event: Event) => {
+    const copyLink = async (scope: 'event' | 'series') => {
+      try {
+        const queryParams =
+          scope === 'event'
+            ? { eventId: String(event.id) }
+            : event.seriesUuid
+            ? { seriesId: event.seriesUuid }
+            : { eventId: String(event.id) };
+        const url = Linking.createURL('/tabs/events', { queryParams });
+        await copyToClipboard(url);
+        Alert.alert(
+          'Link copied',
+          scope === 'series'
+            ? 'Share this link so members jump directly to this event series.'
+            : 'Share this link so members jump directly to this event.'
+        );
+      } catch {
+        Alert.alert('Unable to copy link', 'Try again in a moment.');
+      }
+    };
+
+    if (event.seriesUuid) {
+      Alert.alert('Copy link', 'Do you want to share this specific occurrence or the whole series?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'This event',
+          onPress: () => {
+            void copyLink('event');
+          },
+        },
+        {
+          text: 'Entire series',
+          onPress: () => {
+            void copyLink('series');
+          },
+        },
+      ]);
+    } else {
+      void copyLink('event');
+    }
+  };
+
+  const handleToggleAttendance = async (eventId: number, options: { series: boolean; attending: boolean }) => {
+    try {
+      eventsState.setError(null);
+      await eventsState.toggleAttendance(eventId, options);
+    } catch {
+      // handled upstream
+    }
+  };
 
   const openPicker = (field: PickerField) => {
     const currentValue = (() => {
@@ -219,7 +327,7 @@ export function EventsScreen({
               />
               <TouchableOpacity
                 style={styles.checkboxRow}
-                onPress={() => onToggleAttendingOnly(!attendingOnly)}
+                onPress={() => setAttendingOnly(!attendingOnly)}
                 activeOpacity={0.85}
               >
                 <Feather name={attendingOnly ? 'check-square' : 'square'} size={18} color={colors.text} />
@@ -252,6 +360,18 @@ export function EventsScreen({
                   }}
                 />
               ) : null}
+            </View>
+          ) : null}
+          {!showForm && focus ? (
+            <View style={styles.focusBanner}>
+              <Feather name="filter" size={16} color={colors.text} />
+              <View style={styles.focusBannerText}>
+                <Text style={styles.focusBannerTitle}>Filtered by shared link</Text>
+                <Text style={styles.focusBannerDescription}>{focusedDescriptor ?? 'Showing shared event.'}</Text>
+              </View>
+              <TouchableOpacity style={styles.focusClearButton} onPress={clearFocus} activeOpacity={0.85}>
+                <Text style={styles.focusClearLabel}>Clear</Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -568,7 +688,7 @@ export function EventsScreen({
                                       ]}
                                       onPress={() => {
                                         if (!occurrenceEventId) return;
-                                        void onToggleAttendance(occurrenceEventId, {
+                                        void handleToggleAttendance(occurrenceEventId, {
                                           series: false,
                                           attending: occurrenceAttending,
                                         });
@@ -592,29 +712,47 @@ export function EventsScreen({
                       </View>
                     ) : null}
                     {isAdmin ? (
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => {
-                          setFormState({
-                            name: event.name,
-                            description: event.description,
-                            workingGroupId: event.workingGroupId,
-                            startAt: event.startAt,
-                            endAt: event.endAt,
-                            location: event.location,
-                          });
-                          setIsSeries(Boolean(event.seriesUuid));
-                          setSeriesEndAt(event.seriesEndAt ?? '');
-                          setRecurrence((event.recurrence as RecurrenceRule) ?? 'none');
-                          setMonthlyPattern('date');
-                          setEditingId(event.id);
-                          setShowForm(true);
-                        }}
-                        activeOpacity={0.85}
-                      >
-                        <Feather name="edit-2" size={14} color={colors.text} />
-                        <Text style={styles.editLabel}>Edit</Text>
-                      </TouchableOpacity>
+                      <View style={styles.adminActionsRow}>
+                        <TouchableOpacity
+                          style={styles.editButton}
+                          onPress={() => {
+                            setFormState({
+                              name: event.name,
+                              description: event.description,
+                              workingGroupId: event.workingGroupId,
+                              startAt: event.startAt,
+                              endAt: event.endAt,
+                              location: event.location,
+                            });
+                            setIsSeries(Boolean(event.seriesUuid));
+                            setSeriesEndAt(event.seriesEndAt ?? '');
+                            setRecurrence((event.recurrence as RecurrenceRule) ?? 'none');
+                            setMonthlyPattern('date');
+                            setEditingId(event.id);
+                            setShowForm(true);
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Feather name="edit-2" size={14} color={colors.text} />
+                          <Text style={styles.editLabel}>Edit</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.copyButton]}
+                          activeOpacity={0.85}
+                          onPress={() => handleCopyLink(event)}
+                        >
+                          <Feather name="link-2" size={14} color={colors.text} />
+                          <Text style={[styles.editLabel, styles.copyLabel]}>Copy link</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.deleteButton]}
+                          onPress={() => handleDeletePrompt(event)}
+                          activeOpacity={0.85}
+                        >
+                          <Feather name="trash-2" size={14} color={colors.error} />
+                          <Text style={[styles.editLabel, styles.deleteLabel]}>Delete</Text>
+                        </TouchableOpacity>
+                      </View>
                     ) : (
                       <TouchableOpacity
                         style={[styles.editButton, event.attending ? styles.attendingButton : styles.signUpButton]}
@@ -629,16 +767,13 @@ export function EventsScreen({
                                   {
                                     text: isAttending ? 'This event' : 'This event only',
                                     onPress: () => {
-                                      void onToggleAttendance(event.id, { series: false, attending: isAttending });
-                                      setSeriesAllMap((prev) =>
-                                        event.seriesUuid ? { ...prev, [event.seriesUuid]: false } : prev
-                                      );
+                                      void handleToggleAttendance(event.id, { series: false, attending: isAttending });
                                     },
                                   },
                                   {
                                     text: isAttending ? 'All events' : 'All in series',
                                     onPress: () => {
-                                      void onToggleAttendance(event.id, { series: true, attending: isAttending });
+                                      void handleToggleAttendance(event.id, { series: true, attending: isAttending });
                                     },
                                   },
                                   { text: 'Cancel', style: 'cancel' },
@@ -648,7 +783,7 @@ export function EventsScreen({
                               setSeriesPrompt({ eventId: event.id, attending: isAttending });
                             }
                           } else {
-                            void onToggleAttendance(event.id, { series: false, attending: isAttending });
+                            void handleToggleAttendance(event.id, { series: false, attending: isAttending });
                           }
                         }}
                         activeOpacity={0.85}
@@ -663,7 +798,9 @@ export function EventsScreen({
                 ))}
               </View>
             ) : (
-              <Text style={styles.emptyState}>No events scheduled yet.</Text>
+              <Text style={styles.emptyState}>
+                {focusActive ? 'No events matched that shared link. It may be outdated.' : 'No events scheduled yet.'}
+              </Text>
             )
           ) : null}
         </SectionCard>
@@ -678,7 +815,10 @@ export function EventsScreen({
                 <SecondaryButton
                   label={seriesPrompt.attending ? 'This event' : 'This event only'}
                   onPress={() => {
-                    void onToggleAttendance(seriesPrompt.eventId, { series: false, attending: seriesPrompt.attending });
+                    void handleToggleAttendance(seriesPrompt.eventId, {
+                      series: false,
+                      attending: seriesPrompt.attending,
+                    });
                     setSeriesPrompt(null);
                   }}
                   style={styles.modalButton}
@@ -686,7 +826,10 @@ export function EventsScreen({
                 <PrimaryButton
                   label={seriesPrompt.attending ? 'All events' : 'All in series'}
                   onPress={() => {
-                    void onToggleAttendance(seriesPrompt.eventId, { series: true, attending: seriesPrompt.attending });
+                    void handleToggleAttendance(seriesPrompt.eventId, {
+                      series: true,
+                      attending: seriesPrompt.attending,
+                    });
                     setSeriesPrompt(null);
                   }}
                   style={styles.modalButton}
@@ -782,365 +925,36 @@ function getOrdinalWord(index: number) {
   return words[index - 1] ?? `${index}th`;
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  itemMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: spacing.xl * 3,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  sectionDescription: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  adminPanel: {
-    gap: spacing.sm,
-  },
-  adminToggle: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceAlt,
-  },
-  adminToggleContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  adminToggleLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  form: {
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceAlt,
-  },
-  textArea: {
-    minHeight: 72,
-    textAlignVertical: 'top',
-  },
-  formActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-  },
-  formButton: {
-    flex: 1,
-  },
-  errorText: {
-    color: colors.error,
-    fontSize: 13,
-  },
-  groupPicker: {
-    gap: spacing.xs,
-  },
-  groupPickerLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  groupHint: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  list: {
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  listItem: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    gap: spacing.xs,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  itemName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  itemDate: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  attendeeCount: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  itemDescription: {
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-  },
-  metaLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  metaValue: {
-    fontSize: 14,
-    color: colors.text,
-  },
-  seriesBox: {
-    marginTop: spacing.xs,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.xs,
-  },
-  seriesList: {
-    flexDirection: 'column',
-    gap: spacing.sm,
-  },
-  occurrenceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  occurrenceRight: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-  },
-  occurrencePill: {
-    paddingVertical: spacing.xs / 2,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primaryMuted,
-  },
-  occurrenceText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  occurrenceCountPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs / 2,
-    paddingVertical: spacing.xs / 2,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  occurrenceCountText: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  occurrenceAttendButton: {
-    paddingVertical: spacing.xs / 2,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
-  },
-  occurrenceAttendButtonActive: {
-    borderColor: '#badbcc',
-    backgroundColor: '#d1e7dd',
-  },
-  occurrenceAttendLabel: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  occurrenceAttendLabelActive: {
-    color: '#0f5132',
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  editLabel: {
-    fontSize: 12,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  attendingButton: {
-    backgroundColor: '#d1e7dd',
-    borderColor: '#badbcc',
-  },
-  signUpButton: {
-    backgroundColor: colors.surfaceAlt,
-  },
-  attendingLabel: {
-    color: '#0f5132',
-  },
-  signUpLabel: {
-    color: colors.text,
-  },
-  emptyState: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-  filterPanel: {
-    gap: spacing.sm,
-  },
-  pickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignSelf: 'flex-start',
-  },
-  pickerButtonLabel: {
-    fontSize: 13,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  webInputWrapper: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    backgroundColor: colors.surface,
-  },
-  webDateInput: {
-    width: '100%',
-    height: 36,
-    fontSize: 14,
-    color: colors.text,
-    borderWidth: 0,
-    outlineWidth: 0,
-    backgroundColor: 'transparent',
-  },
-  seriesToggle: {
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  checkboxLabel: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '600',
-  },
-  seriesControls: {
-    gap: spacing.sm,
-  },
-  monthlyPatternWrapper: {
-    gap: spacing.sm,
-  },
-  monthlyOptions: {
-    gap: spacing.xs,
-  },
-  monthlyOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
-  },
-  monthlyOptionActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#f0f5ff',
-  },
-  monthlyOptionCopy: {
-    flex: 1,
-    gap: spacing.xs / 2,
-  },
-  monthlyOptionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  monthlyOptionDescription: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.md,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  modalMessage: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  modalButton: {
-    flex: 1,
-  },
-  modalClose: {
-    marginTop: spacing.sm,
-    alignSelf: 'center',
-  },
-  modalCloseText: {
-    color: colors.textMuted,
-    fontSize: 13,
-  },
-});
+async function copyToClipboard(value: string) {
+  const clipboardModule = await loadClipboardModule();
+  if (clipboardModule?.setStringAsync) {
+    await clipboardModule.setStringAsync(value);
+    return;
+  }
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+  } else {
+    throw new Error('Clipboard not available');
+  }
+}
+
+type ClipboardModule = {
+  setStringAsync?: (value: string) => Promise<void | boolean>;
+};
+
+async function loadClipboardModule(): Promise<ClipboardModule | null> {
+  const cacheKey = '__expoClipboardModule';
+  const cached = (globalThis as Record<string, unknown>)[cacheKey] as ClipboardModule | null | undefined;
+  if (cached !== undefined) {
+    return cached;
+  }
+  try {
+    const module = (await import('expo-clipboard')) as ClipboardModule;
+    (globalThis as Record<string, unknown>)[cacheKey] = module;
+    return module;
+  } catch (error) {
+    console.warn('expo-clipboard not available, falling back to browser clipboard.', error);
+    (globalThis as Record<string, unknown>)[cacheKey] = null;
+    return null;
+  }
+}

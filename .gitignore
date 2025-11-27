@@ -8,3 +8,4 @@ mobile/.env
 server/.env
 .expo/
 mobile/.expo/
+server/data/app.db

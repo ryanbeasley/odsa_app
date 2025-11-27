@@ -111,6 +111,35 @@ export function useWorkingGroups(token: string | null) {
     [token]
   );
 
+  const deleteGroup = useCallback(
+    async (id: number) => {
+      if (!token) {
+        return;
+      }
+      try {
+        setSaving(true);
+        setError(null);
+        const response = await fetch(`${SERVER_URL}/api/working-groups/${id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok && response.status !== 204) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body?.error ?? `Request failed (${response.status})`);
+        }
+        setGroups((prev) => prev.filter((group) => group.id !== id));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        throw err;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [token]
+  );
+
   useEffect(() => {
     if (!token) {
       resetState();
@@ -128,5 +157,6 @@ export function useWorkingGroups(token: string | null) {
     refresh: fetchGroups,
     createGroup,
     updateGroup,
+    deleteGroup,
   };
 }

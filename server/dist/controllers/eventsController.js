@@ -49,6 +49,19 @@ router.patch('/working-groups/:id', authenticate_1.authenticate, authenticate_1.
     }
     return res.json({ group: (0, serializer_1.serializeWorkingGroup)(updated) });
 });
+router.delete('/working-groups/:id', authenticate_1.authenticate, authenticate_1.requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ error: 'id must be a positive number' });
+    }
+    const existing = (0, workingGroupRepository_1.findWorkingGroupById)(id);
+    if (!existing) {
+        return res.status(404).json({ error: 'Working group not found' });
+    }
+    (0, eventRepository_1.deleteEventsByWorkingGroup)(id);
+    (0, workingGroupRepository_1.deleteWorkingGroup)(id);
+    return res.status(204).send();
+});
 router.get('/events', authenticate_1.authenticate, (req, res) => {
     const userId = req.user?.id ?? null;
     const userEventIds = userId ? new Set((0, eventRepository_1.listUserEventIds)(userId)) : new Set();
@@ -90,6 +103,19 @@ router.get('/events', authenticate_1.authenticate, (req, res) => {
     }));
     res.json({ events: response });
 });
+router.delete('/working-groups/:id', authenticate_1.authenticate, authenticate_1.requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ error: 'id must be a positive number' });
+    }
+    const existing = (0, workingGroupRepository_1.findWorkingGroupById)(id);
+    if (!existing) {
+        return res.status(404).json({ error: 'Working group not found' });
+    }
+    (0, eventRepository_1.deleteEventsByWorkingGroup)(id);
+    (0, workingGroupRepository_1.deleteWorkingGroup)(id);
+    return res.status(204).send();
+});
 router.post('/events', authenticate_1.authenticate, authenticate_1.requireAdmin, (req, res) => {
     const error = validateEvent(req.body);
     if (error) {
@@ -129,6 +155,24 @@ router.patch('/events/:id', authenticate_1.authenticate, authenticate_1.requireA
     const id = Number(req.params.id);
     if (!Number.isFinite(id) || id <= 0) {
         return res.status(400).json({ error: 'id must be a positive number' });
+        router.delete('/events/:id', authenticate_1.authenticate, authenticate_1.requireAdmin, (req, res) => {
+            const id = Number(req.params.id);
+            if (!Number.isFinite(id) || id <= 0) {
+                return res.status(400).json({ error: 'id must be a positive number' });
+            }
+            const existing = (0, eventRepository_1.findEventById)(id);
+            if (!existing) {
+                return res.status(404).json({ error: 'Event not found' });
+            }
+            const { series } = req.body ?? {};
+            if (series && existing.series_uuid) {
+                (0, eventRepository_1.deleteEventsBySeries)(existing.series_uuid);
+            }
+            else {
+                (0, eventRepository_1.deleteEventById)(id);
+            }
+            return res.status(204).send();
+        });
     }
     const error = validateEvent(req.body);
     if (error) {
@@ -180,6 +224,24 @@ router.patch('/events/:id', authenticate_1.authenticate, authenticate_1.requireA
     }
     const single = (0, eventRepository_1.updateEvent)(id, name.trim(), description.trim(), numericWorkingGroupId, new Date(startAt).toISOString(), new Date(endAt).toISOString(), location.trim());
     res.json({ event: single ? (0, serializer_1.serializeEvent)({ ...single, working_group_name: workingGroup.name }) : null });
+});
+router.delete('/events/:id', authenticate_1.authenticate, authenticate_1.requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+        return res.status(400).json({ error: 'id must be a positive number' });
+    }
+    const existing = (0, eventRepository_1.findEventById)(id);
+    if (!existing) {
+        return res.status(404).json({ error: 'Event not found' });
+    }
+    const { series } = req.body ?? {};
+    if (series && existing.series_uuid) {
+        (0, eventRepository_1.deleteEventsBySeries)(existing.series_uuid);
+    }
+    else {
+        (0, eventRepository_1.deleteEventById)(id);
+    }
+    return res.status(204).send();
 });
 router.post('/events/:id/attendees', authenticate_1.authenticate, (req, res) => {
     if (!req.user) {

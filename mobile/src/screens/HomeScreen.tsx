@@ -1,15 +1,14 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { colors, radii, spacing } from '../styles/theme';
+import { colors } from '../styles/theme';
 import { TabKey } from '../components/BottomNav';
-import { User } from '../types';
 import { Card } from '../components/Card';
 import { SectionCard } from '../components/SectionCard';
-
-type HomeScreenProps = {
-  user: User;
-  onNavigate: (tab: TabKey) => void;
-};
+import { styles } from './HomeScreen.styles';
+import { useAuth } from '../hooks/useAuth';
+import { TAB_ROUTES } from '../navigation/tabs';
+import { useAppData } from '../providers/AppDataProvider';
 
 type NavTile = {
   key: TabKey;
@@ -26,8 +25,25 @@ const navTiles: NavTile[] = [
   { key: 'settings', label: 'Settings', description: 'Manage your account and admin tools.', icon: 'settings' },
 ];
 
-export function HomeScreen({ user, onNavigate }: HomeScreenProps) {
+export function HomeScreen() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const { eventFilters } = useAppData();
+  if (!user) {
+    return null;
+  }
+
   const friendlyName = user.email.split('@')[0];
+  const handleNavigate = (tab: TabKey) => {
+    if (tab === 'events') {
+      eventFilters.setAttendingOnly(false);
+      eventFilters.clearFocus();
+    }
+    const target = TAB_ROUTES[tab];
+    if (target) {
+      router.push(target);
+    }
+  };
 
   return (
     <View style={styles.screen}>
@@ -52,7 +68,7 @@ export function HomeScreen({ user, onNavigate }: HomeScreenProps) {
                 key={item.key}
                 style={styles.tile}
                 activeOpacity={0.85}
-                onPress={() => onNavigate(item.key)}
+                onPress={() => handleNavigate(item.key)}
               >
                 <View style={styles.tileIcon}>
                   <Feather name={item.icon} size={18} color={colors.text} />
@@ -70,102 +86,3 @@ export function HomeScreen({ user, onNavigate }: HomeScreenProps) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    gap: spacing.lg,
-    paddingBottom: spacing.xl * 4,
-  },
-  greetingCard: {
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  greetingHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.lg,
-  },
-  eyebrow: {
-    color: colors.textMuted,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: spacing.xs,
-  },
-  greetingTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  greetingSubcopy: {
-    color: colors.textMuted,
-    fontSize: 13,
-  },
-  roleTag: {
-    marginTop: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.pill,
-    backgroundColor: colors.bannerMemberBg,
-    color: colors.bannerMemberText,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  sectionCard: {
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  info: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  tileGrid: {
-    gap: spacing.sm,
-  },
-  tile: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    backgroundColor: colors.surfaceAlt,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  tileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  tileCopy: {
-    flex: 1,
-    gap: spacing.xs / 2,
-  },
-  tileLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  tileDescription: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-});

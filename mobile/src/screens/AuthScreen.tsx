@@ -1,10 +1,10 @@
-import { StyleSheet, Text } from 'react-native';
-import { colors, spacing } from '../styles/theme';
+import { Text } from 'react-native';
 import { Card } from '../components/Card';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
 import { GoogleButton } from '../components/GoogleButton';
+import { styles } from './AuthScreen.styles';
 
 type AuthMode = 'login' | 'signup';
 
@@ -79,17 +79,3 @@ export function AuthScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  heading: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  subheading: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  error: {
-    color: colors.error,
-  },
-});

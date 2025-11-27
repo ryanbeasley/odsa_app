@@ -1,73 +1,63 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
   ScrollView,
-  StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
-import { colors, radii, spacing } from '../styles/theme';
-import { Announcement, User } from '../types';
+import { Feather } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
+import { useRouter } from 'expo-router';
+import { colors } from '../styles/theme';
+import { Announcement } from '../types';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { styles } from './AnnouncementsScreen.styles';
+import { useAppData } from '../providers/AppDataProvider';
+import { useAuth } from '../hooks/useAuth';
 
-type AnnouncementsScreenProps = {
-  user: User;
-  announcements: Announcement[];
-  draft: string;
-  loading: boolean;
-  saving: boolean;
-  loadingMore: boolean;
-  error: string | null;
-  isAdmin: boolean;
-  canSave: boolean;
-  hasMore: boolean;
-  onDraftChange: (value: string) => void;
-  onSave: () => void;
-  onLoadMore: () => void;
-};
-
-export function AnnouncementsScreen({
-  user,
-  announcements,
-  draft,
-  loading,
-  saving,
-  loadingMore,
-  error,
-  isAdmin,
-  canSave,
-  onDraftChange,
-  onSave,
-  hasMore,
-  onLoadMore,
-}: AnnouncementsScreenProps) {
+export function AnnouncementsScreen() {
+  const router = useRouter();
+  const { announcements: announcementsState } = useAppData();
+  const { isViewingAsAdmin } = useAuth();
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [layoutHeight, setLayoutHeight] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
+  const [linkModalVisible, setLinkModalVisible] = useState(false);
+  const [linkLabel, setLinkLabel] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const hasMore = announcementsState.hasMore;
+  const canSave = useMemo(
+    () => Boolean(isViewingAsAdmin && announcementsState.draft.trim() && !announcementsState.saving),
+    [announcementsState.draft, announcementsState.saving, isViewingAsAdmin]
+  );
 
   const triggerLoadMore = useCallback(() => {
     if (!hasMore || isFetchingMore) {
       return;
     }
     setIsFetchingMore(true);
-    onLoadMore();
-  }, [hasMore, isFetchingMore, onLoadMore]);
+    announcementsState.loadMoreAnnouncements();
+  }, [announcementsState, hasMore, isFetchingMore]);
 
   useEffect(() => {
-    if (!loadingMore) {
+    if (!announcementsState.loadingMore) {
       setIsFetchingMore(false);
     }
-  }, [loadingMore]);
+  }, [announcementsState.loadingMore]);
 
   useEffect(() => {
     if (
       hasMore &&
-      !loading &&
-      !loadingMore &&
+      !announcementsState.loading &&
+      !announcementsState.loadingMore &&
       !isFetchingMore &&
       layoutHeight > 0 &&
       contentHeight > 0 &&
@@ -75,7 +65,15 @@ export function AnnouncementsScreen({
     ) {
       triggerLoadMore();
     }
-  }, [contentHeight, hasMore, isFetchingMore, layoutHeight, loading, loadingMore, triggerLoadMore]);
+  }, [
+    announcementsState.loading,
+    announcementsState.loadingMore,
+    contentHeight,
+    hasMore,
+    isFetchingMore,
+    layoutHeight,
+    triggerLoadMore,
+  ]);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
@@ -83,6 +81,75 @@ export function AnnouncementsScreen({
     if (distanceFromBottom < 120) {
       triggerLoadMore();
     }
+  };
+
+  const handleSave = async () => {
+    if (!canSave) {
+      return;
+    }
+    try {
+      await announcementsState.saveAnnouncement();
+    } catch {
+      // handled downstream
+    }
+  };
+
+  const handleOpenLinkModal = () => {
+    setLinkLabel('');
+    setLinkUrl('');
+    setLinkError(null);
+    setLinkModalVisible(true);
+  };
+
+  const handleCloseLinkModal = () => {
+    setLinkModalVisible(false);
+    setLinkLabel('');
+    setLinkUrl('');
+    setLinkError(null);
+  };
+
+  const handleInsertLink = () => {
+    if (!linkLabel.trim() || !linkUrl.trim()) {
+      setLinkError('Add both link text and a URL.');
+      return;
+    }
+    const urlValue = linkUrl.trim().startsWith('http') ? linkUrl.trim() : `https://${linkUrl.trim()}`;
+    try {
+      new URL(urlValue);
+    } catch {
+      setLinkError('Enter a valid URL.');
+      return;
+    }
+    const encodedUrl = encodeURI(urlValue);
+    const markup = `[${linkLabel.trim()}](${encodedUrl})`;
+    announcementsState.setDraft(
+      announcementsState.draft ? `${announcementsState.draft.trimEnd()} ${markup}` : markup
+    );
+    handleCloseLinkModal();
+  };
+
+  const handleMessageLinkPress = (url: string) => {
+    if (tryOpenInternalLink(url)) {
+      return;
+    }
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Unable to open link', `Try again or copy this address:\n${url}`);
+    });
+  };
+
+  const tryOpenInternalLink = (url: string) => {
+    try {
+      const parsed = Linking.parse(url);
+      const path = normalizePath(parsed.path ?? undefined);
+      if (path.startsWith('/tabs/events')) {
+        const search = buildSearch(parsed.queryParams ?? undefined);
+        router.push(`${path}${search}`);
+        return true;
+      }
+    } catch {
+      // ignore and fall back to external handling
+    }
+    return false;
   };
 
   return (
@@ -101,36 +168,48 @@ export function AnnouncementsScreen({
       >
         <SectionCard style={styles.sectionCard}>
           <Text style={styles.sectionLabel}>Announcements</Text>
-          {isAdmin ? (
+          {isViewingAsAdmin ? (
             <>
               <Text style={styles.info}>Post short updates about meetings, canvasses, or wins.</Text>
+              <TouchableOpacity style={styles.linkButton} onPress={handleOpenLinkModal} activeOpacity={0.85}>
+                <Feather name="link-2" size={16} color={colors.primary} />
+                <Text style={styles.linkButtonLabel}>Add link</Text>
+              </TouchableOpacity>
               <TextField
                 style={styles.input}
-                value={draft}
-                onChangeText={onDraftChange}
-                editable={!saving}
+                value={announcementsState.draft}
+                onChangeText={(value) => {
+                  announcementsState.setError(null);
+                  announcementsState.setDraft(value);
+                }}
+                editable={!announcementsState.saving}
                 placeholder="Type a quick announcement..."
                 multiline
               />
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-              <PrimaryButton label="Save announcement" loading={saving} disabled={!canSave} onPress={onSave} />
+              {announcementsState.error ? <Text style={styles.error}>{announcementsState.error}</Text> : null}
+              <PrimaryButton
+                label="Save announcement"
+                loading={announcementsState.saving}
+                disabled={!canSave}
+                onPress={handleSave}
+              />
             </>
           ) : (
             <Text style={styles.info}>End of announcements.</Text>
           )}
-          {loading ? (
+          {announcementsState.loading ? (
             <ActivityIndicator color={colors.primary} />
-          ) : announcements.length ? (
+          ) : announcementsState.announcements.length ? (
             <>
               <View style={styles.announcementBody}>
-                {announcements.map((announcement) => (
+                {announcementsState.announcements.map((announcement) => (
                   <View key={announcement.id} style={styles.announcementItem}>
                     <Text style={styles.timestamp}>{formatTimestamp(announcement.createdAt)}</Text>
-                    <Text style={styles.message}>{announcement.body}</Text>
+                    {renderAnnouncementMessage(announcement.body, handleMessageLinkPress)}
                   </View>
                 ))}
               </View>
-              {loadingMore ? (
+              {announcementsState.loadingMore ? (
                 <ActivityIndicator style={styles.loadingMoreIndicator} color={colors.primaryDark} />
               ) : null}
             </>
@@ -139,6 +218,30 @@ export function AnnouncementsScreen({
           )}
         </SectionCard>
       </ScrollView>
+      <Modal
+        visible={linkModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseLinkModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Add hyperlink</Text>
+            <Text style={styles.modalDescription}>Enter the label and URL you want to insert.</Text>
+            <TextField label="Link text" value={linkLabel} onChangeText={setLinkLabel} placeholder="Link label" />
+            <TextField label="URL" value={linkUrl} onChangeText={setLinkUrl} placeholder="https://example.org" />
+            {linkError ? <Text style={styles.error}>{linkError}</Text> : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.linkActionButton, styles.cancelButton]} onPress={handleCloseLinkModal}>
+                <Text style={styles.cancelButtonLabel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.linkActionButton} onPress={handleInsertLink}>
+                <Text style={styles.linkActionLabel}>Insert link</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -156,66 +259,70 @@ function formatTimestamp(value: string) {
   }).format(date);
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  scrollArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    gap: spacing.lg,
-    paddingBottom: spacing.xl * 4,
-  },
-  sectionCard: {
-    padding: spacing.xl,
-    gap: spacing.md,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  announcementBody: {
-    gap: spacing.xs,
-  },
-  announcementItem: {
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.xs,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  message: {
-    fontSize: 16,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  emptyState: {
-    color: colors.textMuted,
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  info: {
-    color: colors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  input: {
-    minHeight: 90,
-    textAlignVertical: 'top',
-  },
-  error: {
-    color: colors.error,
-    fontSize: 13,
-  },
-  loadingMoreIndicator: {
-    marginTop: spacing.sm,
-    alignSelf: 'center',
-  },
-});
+function renderAnnouncementMessage(message: string, onLinkPress: (url: string) => void) {
+  const segments = parseLinkSegments(message);
+  return (
+    <Text style={styles.message}>
+      {segments.map((segment, index) =>
+        segment.url ? (
+          <Text
+            key={`link-${index}`}
+            style={styles.linkText}
+            onPress={() => onLinkPress(segment.url!)}
+            suppressHighlighting
+          >
+            {segment.text}
+          </Text>
+        ) : (
+          segment.text
+        )
+      )}
+    </Text>
+  );
+}
+
+function parseLinkSegments(message: string): { text: string; url?: string }[] {
+  const regex = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const segments: { text: string; url?: string }[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(message)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ text: message.slice(lastIndex, match.index) });
+    }
+    segments.push({ text: match[1], url: match[2] });
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < message.length) {
+    segments.push({ text: message.slice(lastIndex) });
+  }
+  return segments.length ? segments : [{ text: message }];
+}
+
+function normalizePath(value?: string | null) {
+  if (!value) {
+    return '/';
+  }
+  const stripped = value.replace(/^\/+/, '/');
+  return stripped.startsWith('/') ? stripped : `/${stripped}`;
+}
+
+function buildSearch(queryParams?: Record<string, string | string[] | null | undefined> | null) {
+  if (!queryParams) {
+    return '';
+  }
+  const params = new URLSearchParams();
+  Object.entries(queryParams).forEach(([key, value]) => {
+    if (typeof value === 'string') {
+      params.append(key, value);
+    } else if (Array.isArray(value)) {
+      value.forEach((entry) => {
+        if (typeof entry === 'string') {
+          params.append(key, entry);
+        }
+      });
+    }
+  });
+  const result = params.toString();
+  return result ? `?${result}` : '';
+}

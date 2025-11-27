@@ -117,6 +117,52 @@ export function useEvents(token: string | null) {
     [token]
   );
 
+  const deleteEvent = useCallback(
+    async (id: number, options: { series: boolean }) => {
+      if (!token) {
+        return;
+      }
+      try {
+        setSaving(true);
+        setError(null);
+        const response = await fetch(`${SERVER_URL}/api/events/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ series: options.series }),
+        });
+        if (!response.ok && response.status !== 204) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body?.error ?? `Request failed (${response.status})`);
+        }
+
+        const targetEvent = events.find((evt) => evt.id === id);
+
+        setEvents((prev) => {
+          if (options.series) {
+            const targetSeries = prev.find((evt) => evt.id === id)?.seriesUuid;
+            if (targetSeries) {
+              return prev.filter((evt) => evt.seriesUuid !== targetSeries);
+            }
+          }
+          return prev.filter((evt) => evt.id !== id);
+        });
+
+        if (!options.series && targetEvent?.seriesUuid) {
+          await fetchEvents();
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        throw err;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [events, fetchEvents, token]
+  );
+
   const toggleAttendance = useCallback(
     async (eventId: number, options: { series: boolean; attending: boolean }) => {
       if (!token) {
@@ -219,5 +265,6 @@ export function useEvents(token: string | null) {
     updateEvent,
     setEvents,
     toggleAttendance,
+    deleteEvent,
   };
 }

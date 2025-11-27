@@ -10,6 +10,7 @@ exports.updateEvent = updateEvent;
 exports.deleteEventsBySeries = deleteEventsBySeries;
 exports.deleteEventById = deleteEventById;
 exports.listEventsBySeries = listEventsBySeries;
+exports.deleteEventsByWorkingGroup = deleteEventsByWorkingGroup;
 exports.addEventAttendee = addEventAttendee;
 exports.deleteEventAttendee = deleteEventAttendee;
 exports.listUserEventIds = listUserEventIds;
@@ -78,6 +79,9 @@ function listEventsBySeries(seriesUuid) {
     return connection_1.db
         .prepare('SELECT * FROM events WHERE series_uuid = ? ORDER BY start_at ASC')
         .all(seriesUuid);
+}
+function deleteEventsByWorkingGroup(workingGroupId) {
+    connection_1.db.prepare('DELETE FROM events WHERE working_group_id = ?').run(workingGroupId);
 }
 function addEventAttendee(userId, eventId) {
     connection_1.db.prepare('INSERT OR IGNORE INTO event_attendees (user_id, event_id) VALUES (?, ?)').run(userId, eventId);

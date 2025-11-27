@@ -1,24 +1,17 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
-import { colors, radii, spacing } from '../styles/theme';
-import { User } from '../types';
+import { styles } from './UpdateProfileScreen.styles';
+import { useAuth } from '../hooks/useAuth';
 
-type UpdateProfileScreenProps = {
-  user: User;
-  onSubmit: (values: {
-    firstName?: string | null;
-    lastName?: string | null;
-    phone?: string | null;
-    email?: string;
-  }) => Promise<void>;
-  onCancel: () => void;
-};
-
-export function UpdateProfileScreen({ user, onSubmit, onCancel }: UpdateProfileScreenProps) {
+export function UpdateProfileScreen() {
+  const auth = useAuth();
+  const router = useRouter();
+  const user = (auth.sessionUser ?? auth.user)!;
   const [firstName, setFirstName] = useState(user.firstName ?? '');
   const [lastName, setLastName] = useState(user.lastName ?? '');
   const [phone, setPhone] = useState(user.phone ?? '');
@@ -37,12 +30,13 @@ export function UpdateProfileScreen({ user, onSubmit, onCancel }: UpdateProfileS
     try {
       setSaving(true);
       setError(null);
-      await onSubmit({
+      await auth.updateProfile({
         firstName: firstName.trim() ? firstName.trim() : null,
         lastName: lastName.trim() ? lastName.trim() : null,
         phone: phone.trim() ? phone.trim() : null,
         email: email.trim(),
       });
+      router.back();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
@@ -77,7 +71,7 @@ export function UpdateProfileScreen({ user, onSubmit, onCancel }: UpdateProfileS
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.actions}>
-            <SecondaryButton label="Cancel" onPress={onCancel} style={styles.actionButton} />
+            <SecondaryButton label="Cancel" onPress={() => router.back()} style={styles.actionButton} />
             <PrimaryButton label="Save" onPress={handleSubmit} loading={saving} style={styles.actionButton} />
           </View>
         </SectionCard>
@@ -85,36 +79,3 @@ export function UpdateProfileScreen({ user, onSubmit, onCancel }: UpdateProfileS
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    paddingBottom: spacing.xl,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  description: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  error: {
-    color: colors.error,
-  },
-});
