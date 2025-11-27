@@ -10,6 +10,9 @@ import { toPublicUser } from '../utils/serializer';
 const router = Router();
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
+/**
+ * Registers a new user via email + password.
+ */
 router.post('/signup', (req, res) => {
   const { email, password } = req.body ?? {};
   if (typeof email !== 'string' || !email.trim()) {
@@ -30,6 +33,9 @@ router.post('/signup', (req, res) => {
   res.status(201).json({ token, user: toPublicUser(user) });
 });
 
+/**
+ * Authenticates an existing user via email + password.
+ */
 router.post('/login', (req, res) => {
   const { email, password } = req.body ?? {};
   if (typeof email !== 'string' || typeof password !== 'string') {
@@ -48,6 +54,9 @@ router.post('/login', (req, res) => {
   res.json({ token, user: toPublicUser(user) });
 });
 
+/**
+ * Handles Google OAuth-based sign in/up.
+ */
 router.post('/oauth/google', async (req, res) => {
   if (!googleClient || !GOOGLE_CLIENT_ID) {
     return res.status(500).json({ error: 'Google OAuth is not configured' });

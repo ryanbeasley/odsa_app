@@ -22,6 +22,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
+/**
+ * Renders the bottom navigation bar and calls back when a tab is selected.
+ */
 export function BottomNav({ activeTab, onSelectTab }: BottomNavProps) {
   return (
     <View style={styles.bottomNav}>

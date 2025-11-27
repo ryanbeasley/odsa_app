@@ -41,6 +41,9 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/**
+ * Provides authentication state/actions to the component tree.
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -49,6 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
   const [viewAsMember, setViewAsMember] = useState(false);
 
+  /**
+   * Logs in or signs up the user with email/password credentials.
+   */
   async function authenticate(mode: AuthMode, credentials: Credentials) {
     setAuthLoading(true);
     setAuthError(null);
@@ -81,12 +87,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * Clears all auth state, effectively signing the user out.
+   */
   const logout = () => {
     setSessionUser(null);
     setToken(null);
     setViewAsMember(false);
   };
 
+  /**
+   * Allows admins to toggle between admin/member view modes.
+   */
   const toggleAdminMode = () => {
     setViewAsMember((prev) => {
       if (!sessionUser || sessionUser.role !== 'admin') {
@@ -96,6 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  /**
+   * Initiates the Google OAuth flow and saves the resulting session.
+   * Not functional, yet.
+   */
   const googleSignIn = async () => {
     if (!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID) {
       setAuthError('Google Sign-In not configured.');
@@ -152,6 +168,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /**
+   * Updates the current user's profile information.
+   */
   const updateProfile = async (payload: ProfilePayload) => {
     if (!token) {
       throw new Error('You must be signed in to update your profile.');
@@ -220,6 +239,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/**
+ * Convenience hook to consume the auth context.
+ */
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {

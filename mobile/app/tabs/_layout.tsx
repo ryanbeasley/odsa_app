@@ -7,6 +7,9 @@ import { colors } from '../../src/styles/theme';
 import { AppDataProvider, useAppData } from '../../src/providers/AppDataProvider';
 import { TAB_ROUTES, tabFromPathname } from '../../src/navigation/tabs';
 
+/**
+ * Wraps the tabs stack in the shared app data provider and renders the shell.
+ */
 export default function TabsLayout() {
   return (
     <AppDataProvider>
@@ -15,12 +18,18 @@ export default function TabsLayout() {
   );
 }
 
+/**
+ * Hosts the hero, outlet, and bottom navigation while syncing tab state.
+ */
 function TabsShell() {
   const pathname = usePathname();
   const router = useRouter();
   const { eventFilters } = useAppData();
   const activeTab = useMemo<TabKey>(() => tabFromPathname(pathname ?? ''), [pathname]);
 
+  /**
+   * Navigates between tabs and resets certain filters when necessary.
+   */
   const handleSelectTab = (tab: TabKey) => {
     if (tab === 'events') {
       eventFilters.setAttendingOnly(true);

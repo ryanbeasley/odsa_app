@@ -26,6 +26,9 @@ type AppDataContextValue = {
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
 
+/**
+ * Hydrates all shared data hooks (announcements/events/etc) and exposes them via context.
+ */
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const announcements = useAnnouncements(token);
@@ -59,6 +62,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Convenience hook to consume the shared app data context.
+ */
 export function useAppData() {
   const context = useContext(AppDataContext);
   if (!context) {

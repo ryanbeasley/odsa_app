@@ -1,14 +1,23 @@
 import { db } from '../db/connection';
 import { Role, UserRow } from '../types';
 
+/**
+ * Finds a user row by email address.
+ */
 export function findUserByEmail(email: string): UserRow | undefined {
   return db.prepare<[string], UserRow>('SELECT * FROM users WHERE email = ?').get(email);
 }
 
+/**
+ * Finds a user row by primary key.
+ */
 export function findUserById(id: number): UserRow | undefined {
   return db.prepare<[number], UserRow>('SELECT * FROM users WHERE id = ?').get(id);
 }
 
+/**
+ * Inserts a new user with the given credentials.
+ */
 export function createUser(email: string, passwordHash: string, role: Role): UserRow {
   const info = db
     .prepare<[string, string, Role]>('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
@@ -17,6 +26,9 @@ export function createUser(email: string, passwordHash: string, role: Role): Use
   return findUserById(Number(info.lastInsertRowid)) as UserRow;
 }
 
+/**
+ * Lists users optionally filtered by a search term.
+ */
 export function listUsers(search?: string): UserRow[] {
   if (search?.trim()) {
     const term = `%${search.trim().toLowerCase()}%`;
@@ -34,6 +46,9 @@ export function listUsers(search?: string): UserRow[] {
   return db.prepare<[], UserRow>('SELECT * FROM users ORDER BY email ASC').all();
 }
 
+/**
+ * Updates profile fields for a user.
+ */
 export function updateUserProfile(
   id: number,
   updates: { email?: string; first_name?: string | null; last_name?: string | null; phone?: string | null }
@@ -64,6 +79,9 @@ export function updateUserProfile(
   return findUserById(id);
 }
 
+/**
+ * Updates a user's role.
+ */
 export function updateUserRole(id: number, role: Role): UserRow | undefined {
   db.prepare<[Role, number]>('UPDATE users SET role = ? WHERE id = ?').run(role, id);
   return findUserById(id);

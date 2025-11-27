@@ -18,6 +18,9 @@ import { signToken } from '../utils/jwt';
 
 const router = Router();
 
+/**
+ * Updates the authenticated user's profile details.
+ */
 router.patch('/profile', authenticate, (req: AuthedRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -67,6 +70,9 @@ router.patch('/profile', authenticate, (req: AuthedRequest, res) => {
   return res.json({ token, user: toPublicUser(updated) });
 });
 
+/**
+ * Registers or updates the Expo push subscription for the current user.
+ */
 router.post('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   const { token, announcementAlertsEnabled, eventAlertsEnabled } = req.body ?? {};
   if (typeof token !== 'string' || !token.trim()) {
@@ -82,6 +88,9 @@ router.post('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   return res.status(201).json({ subscription: serializePushSubscription(subscription) });
 });
 
+/**
+ * Returns the current push subscription for the authenticated user.
+ */
 router.get('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -90,6 +99,9 @@ router.get('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   return res.json({ subscription: existing ? serializePushSubscription(existing) : null });
 });
 
+/**
+ * Deletes the current user's push subscription.
+ */
 router.delete('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -98,6 +110,9 @@ router.delete('/push-subscriptions', authenticate, (req: AuthedRequest, res) => 
   return res.status(204).send();
 });
 
+/**
+ * Registers or updates a web push subscription (VAPID) for the user.
+ */
 router.post('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   const { endpoint, keys } = req.body ?? {};
   if (typeof endpoint !== 'string' || !endpoint.trim()) {
@@ -113,6 +128,9 @@ router.post('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) =
   return res.status(201).json({ subscription: serializeWebPushSubscription(subscription) });
 });
 
+/**
+ * Lists the user's web push subscriptions.
+ */
 router.get('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -124,6 +142,9 @@ router.get('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) =>
   return res.json({ subscriptions });
 });
 
+/**
+ * Deletes the user's web push subscription by endpoint.
+ */
 router.delete('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   const { endpoint } = req.body ?? {};
   if (typeof endpoint !== 'string' || !endpoint.trim()) {
@@ -140,6 +161,9 @@ router.delete('/web-push-subscriptions', authenticate, (req: AuthedRequest, res)
   return res.status(204).send();
 });
 
+/**
+ * Returns the VAPID public key used for web push subscriptions.
+ */
 router.get('/web-push/public-key', (_req, res) => {
   if (!VAPID_PUBLIC_KEY) {
     return res.status(404).json({ error: 'Web push not configured' });
@@ -147,12 +171,18 @@ router.get('/web-push/public-key', (_req, res) => {
   return res.json({ publicKey: VAPID_PUBLIC_KEY });
 });
 
+/**
+ * Lists users (admin only) with optional search query.
+ */
 router.get('/users', authenticate, requireAdmin, (req: AuthedRequest, res) => {
   const queryParam = Array.isArray(req.query.q) ? req.query.q[0] : req.query.q;
   const users = listUsers(typeof queryParam === 'string' ? queryParam : undefined).map(toPublicUser);
   return res.json({ users });
 });
 
+/**
+ * Updates a user's role (admin only) while preventing self-demotion.
+ */
 router.patch('/users/:id/role', authenticate, requireAdmin, (req: AuthedRequest, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {

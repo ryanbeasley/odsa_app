@@ -13,6 +13,9 @@ type FetchOptions = {
   append?: boolean;
 };
 
+/**
+ * Fetches/paginates announcements and handles drafting/saving new ones.
+ */
 export function useAnnouncements(token: string | null) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [draft, setDraft] = useState('');
@@ -22,6 +25,9 @@ export function useAnnouncements(token: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
 
+  /**
+   * Resets hook state when the user logs out or token changes.
+   */
   const resetState = useCallback(() => {
     setAnnouncements([]);
     setDraft('');
@@ -32,6 +38,9 @@ export function useAnnouncements(token: string | null) {
     setLoadingMore(false);
   }, []);
 
+  /**
+   * Retrieves a page of announcements from the API, optionally appending.
+   */
   const fetchAnnouncements = useCallback(
     async ({ cursor, append }: FetchOptions = {}) => {
       if (!token) {
@@ -68,6 +77,9 @@ export function useAnnouncements(token: string | null) {
     [token]
   );
 
+  /**
+   * Loads the first page of announcements after authentication.
+   */
   const loadInitial = useCallback(async () => {
     if (!token) {
       resetState();
@@ -84,6 +96,9 @@ export function useAnnouncements(token: string | null) {
     }
   }, [fetchAnnouncements, resetState, token]);
 
+  /**
+   * Fetches the next page, guarding against concurrent requests.
+   */
   const loadMoreAnnouncements = useCallback(async () => {
     if (!token || !nextCursor || loadingMore) {
       return;
@@ -99,6 +114,9 @@ export function useAnnouncements(token: string | null) {
     }
   }, [fetchAnnouncements, loadingMore, nextCursor, token]);
 
+  /**
+   * Sends a new announcement to the API and prepends it locally.
+   */
   const saveAnnouncement = useCallback(async () => {
     if (!token || !draft.trim()) {
       return;

@@ -25,6 +25,9 @@ const navTiles: NavTile[] = [
   { key: 'settings', label: 'Settings', description: 'Manage your account and admin tools.', icon: 'settings' },
 ];
 
+/**
+ * Personalized hub that greets the user and links to key areas.
+ */
 export function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
@@ -34,6 +37,9 @@ export function HomeScreen() {
   }
 
   const friendlyName = user.email.split('@')[0];
+  /**
+   * Navigates to the requested tab, resetting filters as needed.
+   */
   const handleNavigate = (tab: TabKey) => {
     if (tab === 'events') {
       eventFilters.setAttendingOnly(false);

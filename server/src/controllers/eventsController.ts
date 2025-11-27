@@ -28,11 +28,17 @@ import { MonthlyPattern, RecurrenceRule } from '../types';
 
 const router = Router();
 
+/**
+ * Lists all working groups (auth required).
+ */
 router.get('/working-groups', authenticate, (_req, res) => {
   const groups = listWorkingGroups().map(serializeWorkingGroup);
   res.json({ groups });
 });
 
+/**
+ * Creates a new working group (admin only).
+ */
 router.post('/working-groups', authenticate, requireAdmin, (req, res) => {
   const { name, description, members } = req.body ?? {};
   if (typeof name !== 'string' || !name.trim()) {
@@ -48,6 +54,9 @@ router.post('/working-groups', authenticate, requireAdmin, (req, res) => {
   return res.status(201).json({ group: serializeWorkingGroup(created) });
 });
 
+/**
+ * Updates a working group by ID (admin only).
+ */
 router.patch('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -70,6 +79,12 @@ router.patch('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   return res.json({ group: serializeWorkingGroup(updated) });
 });
 
+/**
+ * Deletes a working group and its events (admin only).
+ */
+/**
+ * Deletes a working group and cascading events (duplicate safeguard).
+ */
 router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -84,6 +99,9 @@ router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   return res.status(204).send();
 });
 
+/**
+ * Returns upcoming events grouped by series along with attendance info.
+ */
 router.get('/events', authenticate, (req, res) => {
   const userId = (req as AuthedRequest).user?.id ?? null;
   const userEventIds = userId ? new Set(listUserEventIds(userId)) : new Set<number>();
@@ -146,6 +164,9 @@ router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   return res.status(204).send();
 });
 
+/**
+ * Creates single or recurring events (admin only).
+ */
 router.post('/events', authenticate, requireAdmin, (req, res) => {
   const error = validateEvent(req.body);
   if (error) {
@@ -209,12 +230,18 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
   res.status(201).json({ event: serializeEvent({ ...first, working_group_name: workingGroup.name }) });
 });
 
+/**
+ * Updates an event (or regenerates its recurrence) by ID.
+ */
 router.patch('/events/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: 'id must be a positive number' });
 
 
+/**
+ * Deletes a single event or an entire series depending on the payload.
+ */
 router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -324,6 +351,9 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
   res.json({ event: single ? serializeEvent({ ...single, working_group_name: workingGroup.name }) : null });
 });
 
+/**
+ * Deletes a single event or series (duplicate definition retained for clarity).
+ */
 router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -342,6 +372,9 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
   return res.status(204).send();
 });
 
+/**
+ * Adds the authenticated user as an attendee for an event/series.
+ */
 router.post('/events/:id/attendees', authenticate, (req: AuthedRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -366,6 +399,9 @@ router.post('/events/:id/attendees', authenticate, (req: AuthedRequest, res) => 
   return res.status(201).json({ attending: true });
 });
 
+/**
+ * Removes the authenticated user from an event/series attendee list.
+ */
 router.delete('/events/:id/attendees', authenticate, (req: AuthedRequest, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -390,6 +426,9 @@ router.delete('/events/:id/attendees', authenticate, (req: AuthedRequest, res) =
   return res.status(204).json({ attending: false });
 });
 
+/**
+ * Validates the incoming event payload and returns an error message, if any.
+ */
 function validateEvent(body: unknown) {
   const { name, description, workingGroupId, startAt, endAt, location, recurrence, monthlyPattern } =
     (body ?? {}) as Record<string, unknown>;
@@ -420,6 +459,9 @@ function validateEvent(body: unknown) {
   return null;
 }
 
+/**
+ * Expands a base event into all recurring instances based on the rule provided.
+ */
 function expandRecurringEvents(params: {
   baseEvent: {
     name: string;
@@ -485,6 +527,9 @@ function expandRecurringEvents(params: {
   return events;
 }
 
+/**
+ * Calculates the next recurrence start date based on the rule.
+ */
 function getNextOccurrenceStart(
   currentStart: Date,
   recurrence: RecurrenceRule,
@@ -512,6 +557,9 @@ function getNextOccurrenceStart(
   }
 }
 
+/**
+ * Finds the next occurrence matching the nth weekday of a month.
+ */
 function getNextMonthlyWeekday(current: Date, weekIndex: number, weekday: number, referenceStart: Date) {
   const candidate = new Date(current);
   candidate.setMonth(candidate.getMonth() + 1);
@@ -520,6 +568,9 @@ function getNextMonthlyWeekday(current: Date, weekIndex: number, weekday: number
   return getNthWeekdayOfMonth(year, month, weekIndex, weekday, referenceStart);
 }
 
+/**
+ * Returns the Date for the nth weekday (e.g., 2nd Tuesday) in the given month.
+ */
 function getNthWeekdayOfMonth(
   year: number,
   month: number,

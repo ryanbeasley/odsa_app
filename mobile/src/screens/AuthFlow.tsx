@@ -5,6 +5,9 @@ import { AuthScreen } from './AuthScreen';
 import { useAuth } from '../hooks/useAuth';
 import { styles } from './AuthFlow.styles';
 
+/**
+ * Container component that manages the login/signup workflow UI.
+ */
 export function AuthFlow() {
   const auth = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -12,6 +15,9 @@ export function AuthFlow() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  /**
+   * Validates local auth fields then triggers the authenticate call.
+   */
   const handleSubmit = async () => {
     if (!email.trim() || password.trim().length < 6) {
       auth.setAuthError('Enter a valid email and password (6+ chars).');

@@ -2,6 +2,9 @@ import { randomUUID } from 'crypto';
 import { db } from '../db/connection';
 import { EventAttendeeRow, EventRow } from '../types';
 
+/**
+ * Returns all events ordered by start time and creation date.
+ */
 export function listEvents(): (EventRow & { working_group_name?: string })[] {
   return db
     .prepare<[], EventRow & { working_group_name?: string }>(
@@ -13,6 +16,9 @@ export function listEvents(): (EventRow & { working_group_name?: string })[] {
     .all();
 }
 
+/**
+ * Returns events whose end time is in the future relative to nowIso.
+ */
 export function listUpcomingEvents(nowIso: string): (EventRow & { working_group_name?: string })[] {
   return db
     .prepare<[string], EventRow & { working_group_name?: string }>(
@@ -25,6 +31,9 @@ export function listUpcomingEvents(nowIso: string): (EventRow & { working_group_
     .all(nowIso);
 }
 
+/**
+ * Counts attendees for the provided event IDs.
+ */
 export function countAttendeesByEventIds(eventIds: number[]): Record<number, number> {
   if (!eventIds.length) {
     return {};
@@ -40,6 +49,9 @@ export function countAttendeesByEventIds(eventIds: number[]): Record<number, num
   }, {});
 }
 
+/**
+ * Creates a single event row and returns it with all columns.
+ */
 export function createEvent(
   name: string,
   description: string,
@@ -62,6 +74,9 @@ export function createEvent(
     .get(Number(insert.lastInsertRowid)) as EventRow;
 }
 
+/**
+ * Creates a series of related events sharing a generated series UUID.
+ */
 export function createEventSeries(
   payloads: {
     name: string;
@@ -90,6 +105,9 @@ export function createEventSeries(
   );
 }
 
+/**
+ * Finds an event by ID including the working group name.
+ */
 export function findEventById(id: number): (EventRow & { working_group_name?: string }) | undefined {
   return db
     .prepare<[number], EventRow & { working_group_name?: string }>(
@@ -101,6 +119,9 @@ export function findEventById(id: number): (EventRow & { working_group_name?: st
     .get(id);
 }
 
+/**
+ * Updates an event's core fields and returns the hydrated record.
+ */
 export function updateEvent(
   id: number,
   name: string,
@@ -117,24 +138,39 @@ export function updateEvent(
   return findEventById(id);
 }
 
+/**
+ * Deletes all events belonging to a given series UUID.
+ */
 export function deleteEventsBySeries(seriesUuid: string): void {
   db.prepare<[string]>('DELETE FROM events WHERE series_uuid = ?').run(seriesUuid);
 }
 
+/**
+ * Deletes a single event by ID.
+ */
 export function deleteEventById(id: number): void {
   db.prepare<[number]>('DELETE FROM events WHERE id = ?').run(id);
 }
 
+/**
+ * Lists events that belong to a given series.
+ */
 export function listEventsBySeries(seriesUuid: string): EventRow[] {
   return db
     .prepare<[string], EventRow>('SELECT * FROM events WHERE series_uuid = ? ORDER BY start_at ASC')
     .all(seriesUuid);
 }
 
+/**
+ * Deletes all events associated with a working group.
+ */
 export function deleteEventsByWorkingGroup(workingGroupId: number): void {
   db.prepare<[number]>('DELETE FROM events WHERE working_group_id = ?').run(workingGroupId);
 }
 
+/**
+ * Registers a user as attending an event, ignoring duplicates.
+ */
 export function addEventAttendee(userId: number, eventId: number): EventAttendeeRow {
   db.prepare<[number, number]>('INSERT OR IGNORE INTO event_attendees (user_id, event_id) VALUES (?, ?)').run(
     userId,
@@ -145,10 +181,16 @@ export function addEventAttendee(userId: number, eventId: number): EventAttendee
     .get(userId, eventId) as EventAttendeeRow;
 }
 
+/**
+ * Removes a user from an event's attendee list.
+ */
 export function deleteEventAttendee(userId: number, eventId: number): void {
   db.prepare<[number, number]>('DELETE FROM event_attendees WHERE user_id = ? AND event_id = ?').run(userId, eventId);
 }
 
+/**
+ * Returns all event IDs the user is attending.
+ */
 export function listUserEventIds(userId: number): number[] {
   return db
     .prepare<[number], { event_id: number }>('SELECT event_id FROM event_attendees WHERE user_id = ?')

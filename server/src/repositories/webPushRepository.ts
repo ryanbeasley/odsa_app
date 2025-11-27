@@ -1,6 +1,9 @@
 import { db } from '../db/connection';
 import { WebPushSubscriptionRow } from '../types';
 
+/**
+ * Inserts or updates a web push subscription for the given endpoint.
+ */
 export function upsertWebPushSubscription(
   userId: number,
   endpoint: string,
@@ -26,14 +29,23 @@ export function upsertWebPushSubscription(
     .get(endpoint) as WebPushSubscriptionRow;
 }
 
+/**
+ * Removes a web push subscription by endpoint.
+ */
 export function deleteWebPushSubscription(endpoint: string): void {
   db.prepare<[string]>('DELETE FROM web_push_subscriptions WHERE endpoint = ?').run(endpoint);
 }
 
+/**
+ * Lists all stored web push subscriptions.
+ */
 export function listWebPushSubscriptions(): WebPushSubscriptionRow[] {
   return db.prepare<[], WebPushSubscriptionRow>('SELECT * FROM web_push_subscriptions').all();
 }
 
+/**
+ * Looks up a subscription by endpoint.
+ */
 export function findWebPushSubscriptionByEndpoint(endpoint: string): WebPushSubscriptionRow | undefined {
   return db.prepare<[string], WebPushSubscriptionRow>('SELECT * FROM web_push_subscriptions WHERE endpoint = ?').get(endpoint);
 }

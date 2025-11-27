@@ -5,6 +5,9 @@ type SecondaryButtonProps = TouchableOpacityProps & {
   label: string;
 };
 
+/**
+ * Secondary/outlined button variant for less prominent actions.
+ */
 export function SecondaryButton({ label, style, ...props }: SecondaryButtonProps) {
   return (
     <TouchableOpacity style={[styles.button, style]} {...props}>

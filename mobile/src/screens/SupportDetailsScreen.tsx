@@ -22,6 +22,9 @@ import { useLogoutHandler } from '../hooks/useLogoutHandler';
 
 const appVersion = (appConfig as { expo?: { version?: string } }).expo?.version ?? '1.0.0';
 
+/**
+ * Screen that lists support resources and lets admins manage those links.
+ */
 export function SupportDetailsScreen() {
   const auth = useAuth();
   const handleLogout = useLogoutHandler();
@@ -46,16 +49,25 @@ export function SupportDetailsScreen() {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const isEditing = editingId !== null;
+  /**
+   * Determines whether the admin link form has valid data.
+   */
   const canSubmitLink = useMemo(() => {
     return Boolean(formState.title.trim() && formState.description.trim() && formState.link.trim());
   }, [formState.description, formState.link, formState.title]);
 
+  /**
+   * Opens a support link, showing an alert if it cannot be opened.
+   */
   const handleLinkPress = (href: string) => {
     Linking.openURL(href).catch(() => {
       Alert.alert('Unable to open link', `Try again or copy this address:\n${href}`);
     });
   };
 
+  /**
+   * Populates the form with an existing link so it can be edited.
+   */
   const handleStartEdit = (link: { id: number; title: string; description: string; link: string }) => {
     setEditingId(link.id);
     setFormState({
@@ -65,11 +77,17 @@ export function SupportDetailsScreen() {
     });
   };
 
+  /**
+   * Clears form fields and exits edit mode.
+   */
   const resetForm = () => {
     setEditingId(null);
     setFormState({ title: '', description: '', link: '' });
   };
 
+  /**
+   * Creates or updates a support link depending on whether we are editing.
+   */
   const handleSubmitLink = async () => {
     if (!canSubmitLink || linksSaving) {
       return;
@@ -94,6 +112,9 @@ export function SupportDetailsScreen() {
     }
   };
 
+  /**
+   * Removes a support link (and resets the form if it was being edited).
+   */
   const handleDeleteLink = async (id: number) => {
     try {
       await deleteLink(id);
@@ -105,6 +126,9 @@ export function SupportDetailsScreen() {
     }
   };
 
+  /**
+   * Reorders a support link up or down within the list.
+   */
   const handleMoveLink = async (id: number, direction: 'up' | 'down') => {
     const currentIndex = links.findIndex((link) => link.id === id);
     if (currentIndex === -1) {

@@ -7,6 +7,9 @@ type TextFieldProps = TextInputProps & {
   helperText?: string;
 };
 
+/**
+ * Standardized text input with optional label/helper text styling.
+ */
 export const TextField = forwardRef<TextInput, TextFieldProps>(({ label, helperText, style, ...rest }, ref) => (
   <View style={styles.container}>
     {label ? <Text style={styles.label}>{label}</Text> : null}

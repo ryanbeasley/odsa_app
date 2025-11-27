@@ -24,6 +24,9 @@ const supportLinkSeeds = [
   },
 ];
 
+/**
+ * Creates the necessary tables if they do not already exist.
+ */
 function ensureTables() {
   db.prepare(
     `CREATE TABLE IF NOT EXISTS announcements (
@@ -130,6 +133,9 @@ function ensureTables() {
   ).run();
 }
 
+/**
+ * Applies schema migrations such as adding new columns.
+ */
 function runMigrations() {
   const supportLinksColumns = db.prepare<[], { name: string }>('PRAGMA table_info(support_links)').all();
   if (!supportLinksColumns.some((col) => col.name === 'position')) {
@@ -173,6 +179,9 @@ function runMigrations() {
   }
 }
 
+/**
+ * Seeds default support links if none exist.
+ */
 function seedSupportLinks() {
   const existing = db.prepare('SELECT COUNT(*) as count FROM support_links').get() as { count: number };
   if (existing.count) {
@@ -184,6 +193,9 @@ function seedSupportLinks() {
   });
 }
 
+/**
+ * Seeds an admin user using env-provided credentials if the user is missing.
+ */
 function seedAdminUser() {
   const seedAdminEmail = process.env.ADMIN_EMAIL;
   const seedAdminPassword = process.env.ADMIN_PASSWORD;

@@ -6,6 +6,9 @@ type GoogleButtonProps = TouchableOpacityProps & {
   loading?: boolean;
 };
 
+/**
+ * Specialized button that launches the Google authentication flow.
+ */
 export function GoogleButton({ loading, disabled, style, ...props }: GoogleButtonProps) {
   return (
     <TouchableOpacity

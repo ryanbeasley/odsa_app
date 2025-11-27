@@ -8,6 +8,9 @@ import {
   WorkingGroupRow,
 } from '../types';
 
+/**
+ * Converts a database user row into the public API shape.
+ */
 export function toPublicUser(user: UserRow) {
   return {
     id: user.id,
@@ -19,6 +22,9 @@ export function toPublicUser(user: UserRow) {
   };
 }
 
+/**
+ * Converts an announcement row to API format.
+ */
 export function serializeAnnouncement(row: AnnouncementRow) {
   return {
     id: row.id,
@@ -27,6 +33,9 @@ export function serializeAnnouncement(row: AnnouncementRow) {
   };
 }
 
+/**
+ * Converts a support link row to API format.
+ */
 export function serializeSupportLink(row: SupportLinkRow) {
   return {
     id: row.id,
@@ -37,6 +46,9 @@ export function serializeSupportLink(row: SupportLinkRow) {
   };
 }
 
+/**
+ * Converts a working group row to API format.
+ */
 export function serializeWorkingGroup(row: WorkingGroupRow) {
   return {
     id: row.id,
@@ -47,6 +59,9 @@ export function serializeWorkingGroup(row: WorkingGroupRow) {
   };
 }
 
+/**
+ * Converts an event row (with optional working group name) to API format.
+ */
 export function serializeEvent(row: EventRow & { working_group_name?: string }) {
   return {
     id: row.id,
@@ -64,6 +79,9 @@ export function serializeEvent(row: EventRow & { working_group_name?: string }) 
   };
 }
 
+/**
+ * Converts a push subscription row to API format.
+ */
 export function serializePushSubscription(row: PushSubscriptionRow) {
   return {
     token: row.token,
@@ -73,6 +91,9 @@ export function serializePushSubscription(row: PushSubscriptionRow) {
   };
 }
 
+/**
+ * Converts a web push subscription row to API format.
+ */
 export function serializeWebPushSubscription(row: WebPushSubscriptionRow) {
   return {
     endpoint: row.endpoint,

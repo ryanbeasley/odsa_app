@@ -10,6 +10,9 @@ import { User } from '../types';
 import { styles } from './UserManagementScreen.styles';
 import { useAuth } from '../hooks/useAuth';
 
+/**
+ * Admin-only interface for searching users and toggling their roles.
+ */
 export function UserManagementScreen() {
   const auth = useAuth();
   const router = useRouter();
@@ -21,6 +24,9 @@ export function UserManagementScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
 
+  /**
+   * Loads users from the API, optionally filtering by query.
+   */
   const fetchUsers = useCallback(
     async (search: string) => {
       if (!token) {
@@ -64,6 +70,9 @@ export function UserManagementScreen() {
     return () => clearTimeout(handle);
   }, [fetchUsers, query, token]);
 
+  /**
+   * Promotes/demotes a user by toggling their role.
+   */
   const handleToggleRole = async (user: User) => {
     if (!token) {
       return;

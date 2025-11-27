@@ -31,6 +31,9 @@ type SelectFieldProps = {
   style?: StyleProp<ViewStyle>;
 };
 
+/**
+ * Custom select control that displays a modal list of options on press.
+ */
 export function SelectField({
   label,
   placeholder = 'Select an option',
@@ -44,6 +47,9 @@ export function SelectField({
   const [visible, setVisible] = useState(false);
   const selected = useMemo(() => options.find((option) => option.value === value), [options, value]);
 
+  /**
+   * Updates the current value and closes the modal.
+   */
   const handleSelect = (optionValue: OptionValue) => {
     onValueChange(optionValue);
     setVisible(false);

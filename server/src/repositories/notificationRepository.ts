@@ -1,6 +1,9 @@
 import { db } from '../db/connection';
 import { EventNotificationType } from '../types';
 
+/**
+ * Checks whether a notification log entry already exists for the given event/user/type.
+ */
 export function hasEventNotificationLog(
   eventId: number,
   userId: number,
@@ -12,6 +15,9 @@ export function hasEventNotificationLog(
   return Boolean(existing);
 }
 
+/**
+ * Inserts a notification log entry if it does not already exist.
+ */
 export function recordEventNotificationLog(
   eventId: number,
   userId: number,

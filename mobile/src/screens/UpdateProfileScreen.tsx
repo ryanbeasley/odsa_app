@@ -8,6 +8,9 @@ import { SecondaryButton } from '../components/SecondaryButton';
 import { styles } from './UpdateProfileScreen.styles';
 import { useAuth } from '../hooks/useAuth';
 
+/**
+ * Screen allowing members to update their profile/contact information.
+ */
 export function UpdateProfileScreen() {
   const auth = useAuth();
   const router = useRouter();
@@ -26,6 +29,9 @@ export function UpdateProfileScreen() {
     setEmail(user.email);
   }, [user]);
 
+  /**
+   * Sends the updated profile to the server and navigates back on success.
+   */
   const handleSubmit = async () => {
     try {
       setSaving(true);

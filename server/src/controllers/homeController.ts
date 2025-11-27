@@ -13,6 +13,9 @@ import { sendAnnouncementPush } from '../services/pushService';
 
 const router = Router();
 
+/**
+ * Parses pagination limits from query params while enforcing bounds.
+ */
 function parseLimit(value: unknown, fallback = 5) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -21,6 +24,9 @@ function parseLimit(value: unknown, fallback = 5) {
   return Math.min(20, Math.max(1, Math.floor(parsed)));
 }
 
+/**
+ * Returns paginated announcements for authenticated users.
+ */
 router.get('/announcements', authenticate, (req, res) => {
   const limit = parseLimit(req.query.limit);
   const cursorParam = Array.isArray(req.query.cursor) ? req.query.cursor[0] : req.query.cursor;
@@ -36,6 +42,9 @@ router.get('/announcements', authenticate, (req, res) => {
   res.json({ announcements, nextCursor });
 });
 
+/**
+ * Allows admins to create a new announcement.
+ */
 router.post('/announcements', authenticate, requireAdmin, (req: AuthedRequest, res) => {
   const { message } = req.body ?? {};
   if (typeof message !== 'string' || !message.trim()) {
@@ -46,11 +55,17 @@ router.post('/announcements', authenticate, requireAdmin, (req: AuthedRequest, r
   res.status(201).json({ announcement: serializeAnnouncement(announcement) });
 });
 
+/**
+ * Legacy helper route returning a capped announcement list.
+ */
 router.get('/hello', authenticate, (req, res) => {
   const rows = listAnnouncements(5);
   res.json({ announcements: rows.map(serializeAnnouncement), nextCursor: null });
 });
 
+/**
+ * Legacy helper route for creating announcements.
+ */
 router.post('/hello', authenticate, requireAdmin, (req, res) => {
   const { message } = req.body ?? {};
   if (typeof message !== 'string' || !message.trim()) {
@@ -61,11 +76,17 @@ router.post('/hello', authenticate, requireAdmin, (req, res) => {
   res.status(201).json({ announcement: serializeAnnouncement(announcement) });
 });
 
+/**
+ * Lists all support links.
+ */
 router.get('/support-links', authenticate, (_req, res) => {
   const links = listSupportLinks().map(serializeSupportLink);
   res.json({ links });
 });
 
+/**
+ * Creates a new support link (admin only).
+ */
 router.post('/support-links', authenticate, requireAdmin, (req, res) => {
   const error = validateSupportLinkBody(req.body);
   if (error) {
@@ -81,6 +102,9 @@ router.post('/support-links', authenticate, requireAdmin, (req, res) => {
   return res.status(201).json({ link: serializeSupportLink(created) });
 });
 
+/**
+ * Persists a new ordering for support links (admin only).
+ */
 router.patch('/support-links/reorder', authenticate, requireAdmin, (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids : null;
   if (!ids?.length || !ids.every((value: unknown) => Number.isFinite(Number(value)))) {
@@ -103,6 +127,9 @@ router.patch('/support-links/reorder', authenticate, requireAdmin, (req, res) =>
   return res.json({ links });
 });
 
+/**
+ * Updates an existing support link (admin only).
+ */
 router.patch('/support-links/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -127,6 +154,9 @@ router.patch('/support-links/:id', authenticate, requireAdmin, (req, res) => {
   return res.json({ link: serializeSupportLink(updated) });
 });
 
+/**
+ * Deletes a support link by ID (admin only).
+ */
 router.delete('/support-links/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -136,6 +166,9 @@ router.delete('/support-links/:id', authenticate, requireAdmin, (req, res) => {
   return res.status(204).send();
 });
 
+/**
+ * Validates the payload for creating/updating support links.
+ */
 function validateSupportLinkBody(body: unknown) {
   const { title, description, link } = (body ?? {}) as Record<string, unknown>;
   if (typeof title !== 'string' || !title.trim()) {

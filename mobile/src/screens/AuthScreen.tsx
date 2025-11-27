@@ -24,6 +24,9 @@ type AuthScreenProps = {
   onGoogleSignIn: () => void;
 };
 
+/**
+ * Shared login/signup form used by the auth flow.
+ */
 export function AuthScreen({
   mode,
   email,

@@ -5,6 +5,9 @@ import { PushSubscriptionStatusResponse } from '../types';
 
 type SubscriptionState = PushSubscriptionStatusResponse['subscription'];
 
+/**
+ * Tracks and mutates the user's push notification subscription preferences.
+ */
 export function usePushSubscription(token: string | null) {
   const [subscription, setSubscription] = useState<SubscriptionState>(null);
   const [announcementEnabled, setAnnouncementEnabled] = useState(false);
@@ -12,6 +15,9 @@ export function usePushSubscription(token: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Clears all subscription state when unauthenticated.
+   */
   const resetState = useCallback(() => {
     setSubscription(null);
     setAnnouncementEnabled(false);
@@ -63,6 +69,9 @@ export function usePushSubscription(token: string | null) {
     };
   }, [token, resetState]);
 
+  /**
+   * Persists preference changes, registering for push if no token exists.
+   */
   const savePreferences = useCallback(
     async (prefs: { announcement?: boolean; event?: boolean }) => {
       if (!token) {
@@ -99,6 +108,9 @@ export function usePushSubscription(token: string | null) {
     [announcementEnabled, eventEnabled, subscription, token]
   );
 
+  /**
+   * Toggles announcement alerts, handling API state transitions.
+   */
   const toggleAnnouncements = useCallback(async () => {
     if (!token) {
       return;
@@ -115,6 +127,9 @@ export function usePushSubscription(token: string | null) {
     }
   }, [announcementEnabled, savePreferences, token]);
 
+  /**
+   * Toggles event alerts, handling API state transitions.
+   */
   const toggleEventAlerts = useCallback(async () => {
     if (!token) {
       return;
@@ -131,6 +146,9 @@ export function usePushSubscription(token: string | null) {
     }
   }, [eventEnabled, savePreferences, token]);
 
+  /**
+   * Removes the push subscription entirely.
+   */
   const disable = useCallback(async () => {
     if (!token) {
       resetState();

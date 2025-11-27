@@ -22,6 +22,9 @@ import { styles } from './AnnouncementsScreen.styles';
 import { useAppData } from '../providers/AppDataProvider';
 import { useAuth } from '../hooks/useAuth';
 
+/**
+ * Renders the announcement feed plus the admin compose surface and link modal.
+ */
 export function AnnouncementsScreen() {
   const router = useRouter();
   const { announcements: announcementsState } = useAppData();
@@ -83,6 +86,9 @@ export function AnnouncementsScreen() {
     }
   };
 
+  /**
+   * Persists the current draft via the announcements hook.
+   */
   const handleSave = async () => {
     if (!canSave) {
       return;
@@ -94,6 +100,9 @@ export function AnnouncementsScreen() {
     }
   };
 
+  /**
+   * Opens the link composer modal with a blank state.
+   */
   const handleOpenLinkModal = () => {
     setLinkLabel('');
     setLinkUrl('');
@@ -101,6 +110,9 @@ export function AnnouncementsScreen() {
     setLinkModalVisible(true);
   };
 
+  /**
+   * Closes the link composer modal and clears its state.
+   */
   const handleCloseLinkModal = () => {
     setLinkModalVisible(false);
     setLinkLabel('');
@@ -108,6 +120,9 @@ export function AnnouncementsScreen() {
     setLinkError(null);
   };
 
+  /**
+   * Validates the provided label+URL and injects Markdown syntax into the draft.
+   */
   const handleInsertLink = () => {
     if (!linkLabel.trim() || !linkUrl.trim()) {
       setLinkError('Add both link text and a URL.');
@@ -128,6 +143,9 @@ export function AnnouncementsScreen() {
     handleCloseLinkModal();
   };
 
+  /**
+   * Routes internal deep links in-app and opens external ones via Linking.
+   */
   const handleMessageLinkPress = (url: string) => {
     if (tryOpenInternalLink(url)) {
       return;
@@ -137,6 +155,9 @@ export function AnnouncementsScreen() {
     });
   };
 
+  /**
+   * Attempts to interpret the URL as an Expo Router route for in-app navigation.
+   */
   const tryOpenInternalLink = (url: string) => {
     try {
       const parsed = Linking.parse(url);
@@ -246,6 +267,9 @@ export function AnnouncementsScreen() {
   );
 }
 
+/**
+ * Converts an ISO string into friendly day/time display.
+ */
 function formatTimestamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -259,6 +283,9 @@ function formatTimestamp(value: string) {
   }).format(date);
 }
 
+/**
+ * Breaks a message into text/link segments and renders tappable inline links.
+ */
 function renderAnnouncementMessage(message: string, onLinkPress: (url: string) => void) {
   const segments = parseLinkSegments(message);
   return (
@@ -281,6 +308,9 @@ function renderAnnouncementMessage(message: string, onLinkPress: (url: string) =
   );
 }
 
+/**
+ * Parses `[text](url)` Markdown syntax into a list of text/link segments.
+ */
 function parseLinkSegments(message: string): { text: string; url?: string }[] {
   const regex = /\[([^\]]+)\]\(([^)\s]+)\)/g;
   const segments: { text: string; url?: string }[] = [];
@@ -299,14 +329,21 @@ function parseLinkSegments(message: string): { text: string; url?: string }[] {
   return segments.length ? segments : [{ text: message }];
 }
 
+/**
+ * Normalizes parsed paths so `//tabs/events` becomes `/tabs/events`.
+ */
 function normalizePath(value?: string | null) {
   if (!value) {
     return '/';
   }
+  // Linking.parse can return paths like //tabs/events; strip duplicate slashes
   const stripped = value.replace(/^\/+/, '/');
   return stripped.startsWith('/') ? stripped : `/${stripped}`;
 }
 
+/**
+ * Serializes parsed query params back into a query string.
+ */
 function buildSearch(queryParams?: Record<string, string | string[] | null | undefined> | null) {
   if (!queryParams) {
     return '';

@@ -10,6 +10,9 @@ const app = express();
 
 app.use(express.json());
 
+/**
+ * Basic CORS middleware allowing configurable origins/methods/headers.
+ */
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN ?? '*');
   res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
@@ -20,6 +23,9 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * Health check endpoint that also reports push configuration status.
+ */
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', pushConfigured: Boolean(EXPO_PUSH_TOKEN) });
 });

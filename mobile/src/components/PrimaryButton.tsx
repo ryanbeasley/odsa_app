@@ -6,6 +6,9 @@ type PrimaryButtonProps = TouchableOpacityProps & {
   loading?: boolean;
 };
 
+/**
+ * Primary action button with built-in loading/disabled visuals.
+ */
 export function PrimaryButton({ label, loading, disabled, style, ...props }: PrimaryButtonProps) {
   const isDisabled = disabled || loading;
   return (

@@ -25,6 +25,9 @@ import { styles } from './EventsScreen.styles';
 import { useAppData } from '../providers/AppDataProvider';
 import { useAuth } from '../hooks/useAuth';
 
+/**
+ * Full events experience including filters, admin tools, and event list.
+ */
 export function EventsScreen() {
   const params = useLocalSearchParams<{ eventId?: string | string[]; seriesId?: string | string[] }>();
   const { events: eventsState, groups: groupsState, eventFilters } = useAppData();
@@ -75,6 +78,9 @@ export function EventsScreen() {
     }
   }, [params.eventId, params.seriesId, setAttendingOnly, setFocus]);
 
+  /**
+   * Determines when the admin form has enough data to create/update an event.
+   */
   const canSubmit = useMemo(() => {
     return Boolean(
       formState.name.trim() &&
@@ -87,6 +93,9 @@ export function EventsScreen() {
     );
   }, [formState.description, formState.endAt, formState.location, formState.name, formState.startAt, formState.workingGroupId, saving]);
 
+  /**
+   * Creates or updates an event based on the current form state.
+   */
   const handleSubmit = async () => {
     if (!canSubmit) {
       return;
@@ -122,6 +131,9 @@ export function EventsScreen() {
     }
   };
 
+  /**
+   * Builds the list of events the user should see based on filters/focus state.
+   */
   const filteredEvents = useMemo(() => {
     const now = Date.now();
     const query = search.trim().toLowerCase();
@@ -150,6 +162,9 @@ export function EventsScreen() {
   }, [attendingOnly, events, filterGroupId, focus, search]);
 
   const selectedGroup = groups.find((g) => g.id === formState.workingGroupId);
+  /**
+   * Produces helper text describing whichever event/series is focused.
+   */
   const focusedDescriptor = useMemo(() => {
     if (!focus) return null;
     if (focus.type === 'event') {
@@ -166,6 +181,9 @@ export function EventsScreen() {
   }, [events, focus]);
   const focusActive = Boolean(focus);
 
+  /**
+   * Presents confirmation alerts before deleting an event/series.
+   */
   const handleDeletePrompt = (event: Event) => {
     if (!isAdmin) {
       return;
@@ -209,7 +227,13 @@ export function EventsScreen() {
     }
   };
 
+  /**
+   * Copies a deep link pointing to either a single occurrence or the full series.
+   */
   const handleCopyLink = (event: Event) => {
+    /**
+     * Generates the correct URL for the requested scope and copies it.
+     */
     const copyLink = async (scope: 'event' | 'series') => {
       try {
         const queryParams =
@@ -252,6 +276,9 @@ export function EventsScreen() {
     }
   };
 
+  /**
+   * Toggles the user's attendance for a single event or an entire series.
+   */
   const handleToggleAttendance = async (eventId: number, options: { series: boolean; attending: boolean }) => {
     try {
       eventsState.setError(null);
@@ -261,6 +288,9 @@ export function EventsScreen() {
     }
   };
 
+  /**
+   * Opens the native picker for the requested datetime field.
+   */
   const openPicker = (field: PickerField) => {
     const currentValue = (() => {
       if (field === 'seriesEndAt') {
@@ -274,11 +304,17 @@ export function EventsScreen() {
     setPickerVisible(true);
   };
 
+  /**
+   * Hides the currently open date/time picker.
+   */
   const closePicker = () => {
     setPickerVisible(false);
     setPickerField(null);
   };
 
+  /**
+   * Applies the picker selection into the relevant form field.
+   */
   const applyPickerValue = () => {
     if (!pickerField) {
       return;
@@ -292,6 +328,9 @@ export function EventsScreen() {
     closePicker();
   };
 
+  /**
+   * Formats stored ISO strings for the datetime-local input on web.
+   */
   const toLocalInputValue = (value: string) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -874,6 +913,9 @@ export function EventsScreen() {
   );
 }
 
+/**
+ * Formats a timestamp for display in the event list.
+ */
 function formatTimestamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -887,6 +929,9 @@ function formatTimestamp(value: string) {
   }).format(date);
 }
 
+/**
+ * Builds the label for repeating on a specific calendar date each month.
+ */
 function formatMonthlyDateLabel(startAt?: string) {
   if (!startAt) {
     return 'Select a start date first.';
@@ -899,6 +944,9 @@ function formatMonthlyDateLabel(startAt?: string) {
   return `Repeats on the ${getOrdinal(day)} each month`;
 }
 
+/**
+ * Builds the label for repeating on a specific weekday each month.
+ */
 function formatMonthlyWeekdayLabel(startAt?: string) {
   if (!startAt) {
     return 'Select a start date first.';
@@ -914,17 +962,26 @@ function formatMonthlyWeekdayLabel(startAt?: string) {
 
 const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+/**
+ * Converts a number into its ordinal form (1 -> 1st).
+ */
 function getOrdinal(value: number) {
   const suffixes: Record<number, string> = { 1: 'st', 2: 'nd', 3: 'rd' };
   const v = value % 100;
   return `${value}${suffixes[v] ?? suffixes[v % 10] ?? 'th'}`;
 }
 
+/**
+ * Converts an index into its ordinal word (1 -> first).
+ */
 function getOrdinalWord(index: number) {
   const words = ['first', 'second', 'third', 'fourth', 'fifth'];
   return words[index - 1] ?? `${index}th`;
 }
 
+/**
+ * Attempts to copy text via Expo Clipboard, then falls back to navigator clipboard.
+ */
 async function copyToClipboard(value: string) {
   const clipboardModule = await loadClipboardModule();
   if (clipboardModule?.setStringAsync) {
@@ -942,6 +999,9 @@ type ClipboardModule = {
   setStringAsync?: (value: string) => Promise<void | boolean>;
 };
 
+/**
+ * Dynamically loads expo-clipboard so the module isn’t required in all runtimes.
+ */
 async function loadClipboardModule(): Promise<ClipboardModule | null> {
   const cacheKey = '__expoClipboardModule';
   const cached = (globalThis as Record<string, unknown>)[cacheKey] as ClipboardModule | null | undefined;

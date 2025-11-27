@@ -7,6 +7,9 @@ import { colors } from '../src/styles/theme';
 import { AuthProvider, useAuth } from '../src/hooks/useAuth';
 import { AuthFlow } from '../src/screens/AuthFlow';
 
+/**
+ * Provides the global providers/layout wrapper shared by every route.
+ */
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -24,6 +27,9 @@ export default function RootLayout() {
   );
 }
 
+/**
+ * Gates the app content behind authentication, showing the auth flow when needed.
+ */
 function AuthGate({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   if (!user) {

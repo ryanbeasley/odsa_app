@@ -12,6 +12,9 @@ type SupportLinkPayload = {
   link: string;
 };
 
+/**
+ * Fetches and manages support links shown on the support screen.
+ */
 export function useSupportLinks(token: string | null) {
   const [links, setLinks] = useState<SupportLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +23,9 @@ export function useSupportLinks(token: string | null) {
   const [reordering, setReordering] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Clears all hook state when the user logs out.
+   */
   const resetState = useCallback(() => {
     setLinks([]);
     setLoading(false);
@@ -28,6 +34,9 @@ export function useSupportLinks(token: string | null) {
     setError(null);
   }, []);
 
+  /**
+   * Loads the current set of support links.
+   */
   const fetchLinks = useCallback(async () => {
     if (!token) {
       resetState();
@@ -54,6 +63,9 @@ export function useSupportLinks(token: string | null) {
     }
   }, [resetState, token]);
 
+  /**
+   * Creates a new support link.
+   */
   const createLink = useCallback(
     async (payload: SupportLinkPayload) => {
       if (!token) {
@@ -86,6 +98,9 @@ export function useSupportLinks(token: string | null) {
     [token]
   );
 
+  /**
+   * Updates an existing support link by ID.
+   */
   const updateLink = useCallback(
     async (id: number, payload: SupportLinkPayload) => {
       if (!token) {
@@ -118,6 +133,9 @@ export function useSupportLinks(token: string | null) {
     [token]
   );
 
+  /**
+   * Deletes a support link by ID.
+   */
   const deleteLink = useCallback(
     async (id: number) => {
       if (!token) {
@@ -147,6 +165,9 @@ export function useSupportLinks(token: string | null) {
     [token]
   );
 
+  /**
+   * Applies a new ordering based on the provided IDs.
+   */
   const reorderLinks = useCallback(
     async (ids: number[]) => {
       if (!token) {

@@ -7,6 +7,9 @@ type SectionCardProps = ViewProps & {
   style?: StyleProp<ViewStyle>;
 };
 
+/**
+ * Lightweight card wrapper for grouping related settings/content sections.
+ */
 export function SectionCard({ children, style, ...props }: SectionCardProps) {
   return (
     <View style={[styles.sectionCard, style]} {...props}>

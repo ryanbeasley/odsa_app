@@ -17,6 +17,9 @@ import { styles } from './WorkingGroupsScreen.styles';
 import { useAppData } from '../providers/AppDataProvider';
 import { useAuth } from '../hooks/useAuth';
 
+/**
+ * Admin/member view for browsing and managing working groups.
+ */
 export function WorkingGroupsScreen() {
   const { groups: groupsState } = useAppData();
   const { isViewingAsAdmin } = useAuth();
@@ -29,10 +32,16 @@ export function WorkingGroupsScreen() {
   const [formState, setFormState] = useState({ name: '', description: '', members: '' });
   const [editingId, setEditingId] = useState<number | null>(null);
 
+  /**
+   * Ensures the admin form is filled out before enabling submission.
+   */
   const canSubmit = useMemo(() => {
     return Boolean(formState.name.trim() && formState.description.trim() && formState.members.trim() && !saving);
   }, [formState.description, formState.members, formState.name, saving]);
 
+  /**
+   * Creates or updates a working group based on the form state.
+   */
   const handleSubmit = async () => {
     if (!canSubmit) {
       return;
@@ -54,12 +63,18 @@ export function WorkingGroupsScreen() {
     }
   };
 
+  /**
+   * Clears the form and hides the admin editor.
+   */
   const handleResetForm = () => {
     setFormState({ name: '', description: '', members: '' });
     setEditingId(null);
     setShowForm(false);
   };
 
+  /**
+   * Confirms and deletes a working group along with its events.
+   */
   const handleDeleteGroup = (id: number, name: string) => {
     Alert.alert(
       'Delete working group',
@@ -195,6 +210,9 @@ export function WorkingGroupsScreen() {
   );
 }
 
+/**
+ * Formats a timestamp for the working group list.
+ */
 function formatTimestamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

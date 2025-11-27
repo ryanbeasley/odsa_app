@@ -14,6 +14,9 @@ export interface AuthedRequest extends Request {
   user?: RequestUser;
 }
 
+/**
+ * Express middleware that validates JWT bearer tokens and attaches the user.
+ */
 export function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -38,6 +41,9 @@ export function authenticate(req: AuthedRequest, res: Response, next: NextFuncti
   }
 }
 
+/**
+ * Ensures the authenticated user has admin privileges.
+ */
 export function requireAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });

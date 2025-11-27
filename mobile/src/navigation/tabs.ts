@@ -9,6 +9,9 @@ export const TAB_ROUTES: Record<TabKey, string> = {
   workingGroups: '/tabs/working-groups',
 };
 
+/**
+ * Routes paths within the app to a specific TabKey
+ */
 export function tabFromPathname(pathname: string): TabKey {
   if (pathname.startsWith('/tabs/announcements')) {
     return 'announcements';

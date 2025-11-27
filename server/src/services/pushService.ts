@@ -11,6 +11,9 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webPush.setVapidDetails('mailto:push@odsa.local', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 }
 
+/**
+ * Sends a batch of Expo push notifications in chunks.
+ */
 export async function dispatchExpoPushMessages(messages: ExpoPushMessage[]) {
   if (!EXPO_PUSH_TOKEN || !messages.length) {
     return;
@@ -35,6 +38,9 @@ export async function dispatchExpoPushMessages(messages: ExpoPushMessage[]) {
   }
 }
 
+/**
+ * Sends announcement notifications via native and web push.
+ */
 export async function sendAnnouncementPush(body: string) {
   const subscribers = listPushSubscriptions().filter((row) => row.announcement_alerts_enabled);
   const messages = subscribers.map((row) => ({
@@ -64,6 +70,9 @@ export async function sendAnnouncementPush(body: string) {
   }
 }
 
+/**
+ * Determines whether two dates fall on the same UTC calendar day.
+ */
 function isSameUtcDay(a: Date, b: Date) {
   return (
     a.getUTCFullYear() === b.getUTCFullYear() &&
@@ -72,6 +81,9 @@ function isSameUtcDay(a: Date, b: Date) {
   );
 }
 
+/**
+ * Generates and sends event reminders for upcoming attendee events.
+ */
 export async function processEventAlertNotifications() {
   if (!EXPO_PUSH_TOKEN) {
     return;
@@ -115,6 +127,9 @@ export async function processEventAlertNotifications() {
 
 let eventAlertTimer: NodeJS.Timeout | null = null;
 
+/**
+ * Starts a timer that periodically processes event alerts.
+ */
 export function startEventAlertScheduler() {
   if (eventAlertTimer) {
     return;

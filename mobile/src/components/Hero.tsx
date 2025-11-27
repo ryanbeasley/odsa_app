@@ -6,6 +6,9 @@ type HeroProps = {
   title: string;
 };
 
+/**
+ * Displays the app-wide hero banner with eyebrow/title styling.
+ */
 export function Hero({ eyebrow, title }: HeroProps) {
   return (
     <View style={styles.hero}>

@@ -7,6 +7,9 @@ type CardProps = ViewProps & {
   style?: StyleProp<ViewStyle>;
 };
 
+/**
+ * Simple surface wrapper with consistent card styling.
+ */
 export function Card({ children, style, ...props }: CardProps) {
   return (
     <View style={[styles.card, style]} {...props}>

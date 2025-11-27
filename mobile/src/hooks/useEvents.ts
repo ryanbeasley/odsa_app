@@ -14,12 +14,18 @@ type EventPayload = {
   monthlyPattern?: 'date' | 'weekday';
 };
 
+/**
+ * Manages the events collection along with CRUD/attendance helpers.
+ */
 export function useEvents(token: string | null) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Clears all state when the user logs out or token is missing.
+   */
   const resetState = useCallback(() => {
     setEvents([]);
     setLoading(false);
@@ -27,6 +33,9 @@ export function useEvents(token: string | null) {
     setError(null);
   }, []);
 
+  /**
+   * Loads all events from the server.
+   */
   const fetchEvents = useCallback(async () => {
     if (!token) {
       resetState();
@@ -53,6 +62,9 @@ export function useEvents(token: string | null) {
     }
   }, [resetState, token]);
 
+  /**
+   * Creates a new event and prepends it to local state.
+   */
   const createEvent = useCallback(
     async (payload: EventPayload) => {
       if (!token) {
@@ -85,6 +97,9 @@ export function useEvents(token: string | null) {
     [token]
   );
 
+  /**
+   * Updates an existing event in place.
+   */
   const updateEvent = useCallback(
     async (id: number, payload: EventPayload) => {
       if (!token) {
@@ -117,6 +132,9 @@ export function useEvents(token: string | null) {
     [token]
   );
 
+  /**
+   * Deletes an event (or entire series) and optionally refreshes the feed.
+   */
   const deleteEvent = useCallback(
     async (id: number, options: { series: boolean }) => {
       if (!token) {
@@ -163,6 +181,9 @@ export function useEvents(token: string | null) {
     [events, fetchEvents, token]
   );
 
+  /**
+   * Toggles attendance for a single event or entire series.
+   */
   const toggleAttendance = useCallback(
     async (eventId: number, options: { series: boolean; attending: boolean }) => {
       if (!token) {

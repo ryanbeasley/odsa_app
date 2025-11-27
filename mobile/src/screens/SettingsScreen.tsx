@@ -8,6 +8,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useAppData } from '../providers/AppDataProvider';
 import { useLogoutHandler } from '../hooks/useLogoutHandler';
 
+/**
+ * Settings hub for account info, admin tools, and notification preferences.
+ */
 export function SettingsScreen() {
   const auth = useAuth();
   const router = useRouter();
@@ -19,6 +22,9 @@ export function SettingsScreen() {
   const baseRoleLabel = canToggleAdmin ? 'Admin' : 'Member';
   const viewStatus = isAdminView ? 'Admin view' : 'Member view';
 
+  /**
+   * Toggles announcement push notifications.
+   */
   const handleToggleNotifications = async () => {
     if (push.loading) {
       return;
@@ -31,6 +37,9 @@ export function SettingsScreen() {
     }
   };
 
+  /**
+   * Toggles event alert push notifications.
+   */
   const handleToggleEventNotifications = async () => {
     if (push.loading) {
       return;
