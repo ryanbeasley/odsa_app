@@ -15,13 +15,12 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {                                                                                                                                     
-          "NSAllowsArbitraryLoads": true                                                                                                                                
+          "NSAllowsArbitraryLoads": true
         }
       }
     },
     "android": {
       "package": "com.odsa.mobile",
-      "versionCode": 1,
       "usesCleartextTraffic": true
     },
     "web": {

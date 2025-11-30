@@ -10,3 +10,5 @@ server/.env
 mobile/.expo/
 server/data/app.db
 mobile/devices.json
+mobile/screen_caps/
+server/dist/
