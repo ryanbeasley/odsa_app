@@ -21,7 +21,8 @@
     },
     "android": {
       "package": "com.odsa.mobile",
-      "versionCode": 1
+      "versionCode": 1,
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro"
