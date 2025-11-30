@@ -9,3 +9,4 @@ server/.env
 .expo/
 mobile/.expo/
 server/data/app.db
+mobile/devices.json
