@@ -31,7 +31,10 @@ export default function RootLayout() {
  * Gates the app content behind authentication, showing the auth flow when needed.
  */
 function AuthGate({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, authHydrating } = useAuth();
+  if (authHydrating) {
+    return null;
+  }
   if (!user) {
     return <AuthFlow />;
   }

@@ -1,5 +1,7 @@
-import { createContext, ReactNode, useContext, useMemo, useState } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import * as AuthSession from 'expo-auth-session';
+import * as SecureStore from 'expo-secure-store';
 import { SERVER_URL } from '../config';
 import { AuthResponse, Role, User } from '../types';
 
@@ -27,6 +29,7 @@ type AuthContextValue = {
   sessionUser: User | null;
   token: string | null;
   authLoading: boolean;
+  authHydrating: boolean;
   googleLoading: boolean;
   authError: string | null;
   isSessionAdmin: boolean;
@@ -40,6 +43,8 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AUTH_TOKEN_KEY = 'odsa.auth.token';
+const AUTH_USER_KEY = 'odsa.auth.user';
 
 /**
  * Provides authentication state/actions to the component tree.
@@ -48,9 +53,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionUser, setSessionUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [authHydrating, setAuthHydrating] = useState(true);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [viewAsMember, setViewAsMember] = useState(false);
+
+  const readStoredSession = async () => {
+    const available = await SecureStore.isAvailableAsync();
+    if (available) {
+      const [storedToken, storedUser] = await Promise.all([
+        SecureStore.getItemAsync(AUTH_TOKEN_KEY),
+        SecureStore.getItemAsync(AUTH_USER_KEY),
+      ]);
+      return { storedToken, storedUser };
+    }
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+      return {
+        storedToken: localStorage.getItem(AUTH_TOKEN_KEY),
+        storedUser: localStorage.getItem(AUTH_USER_KEY),
+      };
+    }
+    return { storedToken: null, storedUser: null };
+  };
+
+  const writeStoredSession = async (nextToken: string, nextUser: User) => {
+    const payload = JSON.stringify(nextUser);
+    const available = await SecureStore.isAvailableAsync();
+    if (available) {
+      await Promise.all([
+        SecureStore.setItemAsync(AUTH_TOKEN_KEY, nextToken),
+        SecureStore.setItemAsync(AUTH_USER_KEY, payload),
+      ]);
+      return;
+    }
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+      localStorage.setItem(AUTH_TOKEN_KEY, nextToken);
+      localStorage.setItem(AUTH_USER_KEY, payload);
+    }
+  };
+
+  const clearStoredSession = async () => {
+    const available = await SecureStore.isAvailableAsync();
+    if (available) {
+      await Promise.all([
+        SecureStore.deleteItemAsync(AUTH_TOKEN_KEY),
+        SecureStore.deleteItemAsync(AUTH_USER_KEY),
+      ]);
+      return;
+    }
+    if (Platform.OS === 'web' && typeof localStorage !== 'undefined') {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+    }
+  };
+
+  useEffect(() => {
+    const hydrate = async () => {
+      try {
+        const { storedToken, storedUser } = await readStoredSession();
+        if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser) as User;
+          setToken(storedToken);
+          setSessionUser(parsedUser);
+        }
+      } catch {
+        // ignore storage errors and force login
+      } finally {
+        setAuthHydrating(false);
+      }
+    };
+    void hydrate();
+  }, []);
+
+  const persistSession = async (nextToken: string, nextUser: User) => {
+    try {
+      await writeStoredSession(nextToken, nextUser);
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const clearSession = async () => {
+    try {
+      await clearStoredSession();
+    } catch {
+      // ignore storage errors
+    }
+  };
 
   /**
    * Logs in or signs up the user with email/password credentials.
@@ -79,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       setSessionUser(data.user);
       setViewAsMember(false);
+      void persistSession(data.token, data.user);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Unknown error');
       throw err;
@@ -94,6 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionUser(null);
     setToken(null);
     setViewAsMember(false);
+    void clearSession();
   };
 
   /**
@@ -160,6 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       setSessionUser(data.user);
       setViewAsMember(false);
+      void persistSession(data.token, data.user);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : 'Google Sign-In failed');
       throw err;
@@ -196,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setSessionUser(data.user);
     setViewAsMember(false);
+    void persistSession(data.token, data.user);
   };
 
   const effectiveUser: User | null = sessionUser
@@ -210,6 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionUser,
       token,
       authLoading,
+      authHydrating,
       googleLoading,
       authError,
       isSessionAdmin: Boolean(sessionUser?.role === 'admin'),
@@ -226,6 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionUser,
       token,
       authLoading,
+      authHydrating,
       googleLoading,
       authError,
       authenticate,
