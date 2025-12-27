@@ -71,17 +71,6 @@ export async function sendAnnouncementPush(body: string) {
 }
 
 /**
- * Determines whether two dates fall on the same UTC calendar day.
- */
-function isSameUtcDay(a: Date, b: Date) {
-  return (
-    a.getUTCFullYear() === b.getUTCFullYear() &&
-    a.getUTCMonth() === b.getUTCMonth() &&
-    a.getUTCDate() === b.getUTCDate()
-  );
-}
-
-/**
  * Generates and sends event reminders for upcoming attendee events.
  */
 export async function processEventAlertNotifications() {
@@ -90,6 +79,7 @@ export async function processEventAlertNotifications() {
   }
   const now = new Date();
   const candidates = listEventAlertCandidates(EVENT_ALERT_LOOKAHEAD_HOURS);
+  const lookaheadMs = EVENT_ALERT_LOOKAHEAD_HOURS * 60 * 60 * 1000;
   const messages: ExpoPushMessage[] = [];
   for (const candidate of candidates) {
     const startAt = new Date(candidate.start_at);
@@ -101,12 +91,12 @@ export async function processEventAlertNotifications() {
       continue;
     }
 
-    if (isSameUtcDay(startAt, now) && !hasEventNotificationLog(candidate.event_id, candidate.user_id, 'day-of')) {
+    if (diffMs <= lookaheadMs && !hasEventNotificationLog(candidate.event_id, candidate.user_id, 'day-of')) {
       recordEventNotificationLog(candidate.event_id, candidate.user_id, 'day-of');
       messages.push({
         to: candidate.token,
         title: 'Event reminder',
-        body: `Reminder: ${candidate.event_name} is happening today.`,
+        body: `Reminder: ${candidate.event_name} is happening within the next 24 hours.`,
       });
     }
 

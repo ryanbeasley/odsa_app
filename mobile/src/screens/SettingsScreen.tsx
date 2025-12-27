@@ -179,7 +179,7 @@ export function SettingsScreen() {
                 <View style={styles.navTextGroup}>
                   <Text style={styles.navLabel}>Event alerts</Text>
                   <Text style={styles.navDescription}>
-                    Receive day-of and one-hour reminders for events you&apos;re attending.
+                    Receive 24-hour and one-hour reminders for events you&apos;re attending.
                   </Text>
                 </View>
               </View>
