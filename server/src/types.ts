@@ -49,6 +49,7 @@ export type EventRow = {
   start_at: string;
   end_at: string;
   location: string;
+  location_display_name: string | null;
   series_uuid: string | null;
   recurrence: string | null;
   series_end_at: string | null;

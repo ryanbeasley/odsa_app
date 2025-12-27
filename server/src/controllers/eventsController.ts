@@ -172,13 +172,14 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
   if (error) {
     return res.status(400).json({ error });
   }
-  const { name, description, workingGroupId, startAt, endAt, location, recurrence, seriesEndAt, monthlyPattern } = req.body as {
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrence, seriesEndAt, monthlyPattern } = req.body as {
     name: string;
     description: string;
     workingGroupId: number;
     startAt: string;
     endAt: string;
     location: string;
+    locationDisplayName?: string | null;
     recurrence?: RecurrenceRule;
     seriesEndAt?: string | null;
     monthlyPattern?: MonthlyPattern;
@@ -197,7 +198,7 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
   const seriesUuid = rule === 'none' ? null : crypto.randomUUID();
   const seriesEndDate = seriesEndAt ? new Date(seriesEndAt) : null;
 
-    const expanded = expandRecurringEvents({
+  const expanded = expandRecurringEvents({
       baseEvent: {
         name: name.trim(),
         description: description.trim(),
@@ -205,6 +206,7 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
         startAt: baseStart,
         endAt: baseEnd,
         location: location.trim(),
+        locationDisplayName: normalizeDisplayName(locationDisplayName),
       },
       recurrence: rule,
       seriesEnd: seriesEndDate,
@@ -220,6 +222,7 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
       payload.startAt,
       payload.endAt,
       payload.location,
+      payload.locationDisplayName,
       payload.seriesUuid,
       payload.recurrence === 'none' ? null : payload.recurrence,
       payload.seriesEndAt
@@ -267,13 +270,14 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     return res.status(400).json({ error });
   }
 
-  const { name, description, workingGroupId, startAt, endAt, location, recurrence, seriesEndAt, monthlyPattern } = req.body as {
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrence, seriesEndAt, monthlyPattern } = req.body as {
     name: string;
     description: string;
     workingGroupId: number;
     startAt: string;
     endAt: string;
     location: string;
+    locationDisplayName?: string | null;
     recurrence?: RecurrenceRule;
     seriesEndAt?: string | null;
     monthlyPattern?: MonthlyPattern;
@@ -312,6 +316,7 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
         startAt: baseStart,
         endAt: baseEnd,
         location: location.trim(),
+        locationDisplayName: normalizeDisplayName(locationDisplayName),
       },
       recurrence: recurrenceRule,
       seriesEnd: seriesEndDate,
@@ -327,6 +332,7 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
         payload.startAt,
         payload.endAt,
         payload.location,
+        payload.locationDisplayName,
         payload.seriesUuid,
         payload.recurrence === 'none' ? null : payload.recurrence,
         payload.seriesEndAt
@@ -346,7 +352,8 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     numericWorkingGroupId,
     new Date(startAt).toISOString(),
     new Date(endAt).toISOString(),
-    location.trim()
+    location.trim(),
+    normalizeDisplayName(locationDisplayName)
   );
   res.json({ event: single ? serializeEvent({ ...single, working_group_name: workingGroup.name }) : null });
 });
@@ -430,7 +437,7 @@ router.delete('/events/:id/attendees', authenticate, (req: AuthedRequest, res) =
  * Validates the incoming event payload and returns an error message, if any.
  */
 function validateEvent(body: unknown) {
-  const { name, description, workingGroupId, startAt, endAt, location, recurrence, monthlyPattern } =
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrence, monthlyPattern } =
     (body ?? {}) as Record<string, unknown>;
   if (typeof name !== 'string' || !name.trim()) {
     return 'name is required';
@@ -453,10 +460,21 @@ function validateEvent(body: unknown) {
   if (typeof location !== 'string' || !location.trim()) {
     return 'location is required';
   }
+  if (locationDisplayName !== undefined && locationDisplayName !== null && typeof locationDisplayName !== 'string') {
+    return 'locationDisplayName must be a string';
+  }
   if (recurrence === 'monthly' && monthlyPattern && monthlyPattern !== 'date' && monthlyPattern !== 'weekday') {
     return 'monthlyPattern must be "date" or "weekday"';
   }
   return null;
+}
+
+function normalizeDisplayName(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 }
 
 /**
@@ -470,6 +488,7 @@ function expandRecurringEvents(params: {
     startAt: Date;
     endAt: Date;
     location: string;
+    locationDisplayName: string | null;
   };
   recurrence: RecurrenceRule;
   seriesEnd: Date | null;
@@ -487,6 +506,7 @@ function expandRecurringEvents(params: {
     startAt: startIso,
     endAt: endIso,
     location: baseEvent.location,
+    locationDisplayName: baseEvent.locationDisplayName,
     seriesUuid,
     recurrence,
     seriesEndAt: seriesEnd ? seriesEnd.toISOString() : null,
@@ -517,6 +537,7 @@ function expandRecurringEvents(params: {
       startAt: nextStart.toISOString(),
       endAt: nextEnd.toISOString(),
       location: baseEvent.location,
+      locationDisplayName: baseEvent.locationDisplayName,
       seriesUuid,
       recurrence,
       seriesEndAt: seriesEnd ? seriesEnd.toISOString() : null,

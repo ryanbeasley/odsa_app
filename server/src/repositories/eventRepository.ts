@@ -59,15 +59,16 @@ export function createEvent(
   startAt: string,
   endAt: string,
   location: string,
+  locationDisplayName: string | null,
   seriesUuid: string | null,
   recurrence: string | null,
   seriesEndAt: string | null
 ): EventRow {
   const insert = db
-    .prepare<[string, string, number, string, string, string, string | null, string | null, string | null]>(
-      'INSERT INTO events (name, description, working_group_id, start_at, end_at, location, series_uuid, recurrence, series_end_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    .prepare<[string, string, number, string, string, string, string | null, string | null, string | null, string | null]>(
+      'INSERT INTO events (name, description, working_group_id, start_at, end_at, location, location_display_name, series_uuid, recurrence, series_end_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(name, description, workingGroupId, startAt, endAt, location, seriesUuid, recurrence, seriesEndAt);
+    .run(name, description, workingGroupId, startAt, endAt, location, locationDisplayName, seriesUuid, recurrence, seriesEndAt);
 
   return db
     .prepare<[number], EventRow>('SELECT * FROM events WHERE id = ?')
@@ -85,6 +86,7 @@ export function createEventSeries(
     startAt: string;
     endAt: string;
     location: string;
+    locationDisplayName: string | null;
     recurrence: string | null;
     seriesEndAt: string | null;
   }[]
@@ -98,6 +100,7 @@ export function createEventSeries(
       payload.startAt,
       payload.endAt,
       payload.location,
+      payload.locationDisplayName,
       seriesUuid,
       payload.recurrence,
       payload.seriesEndAt
@@ -129,11 +132,12 @@ export function updateEvent(
   workingGroupId: number,
   startAt: string,
   endAt: string,
-  location: string
+  location: string,
+  locationDisplayName: string | null
 ): (EventRow & { working_group_name?: string }) | undefined {
-  db.prepare<[string, string, number, string, string, string, number]>(
-    'UPDATE events SET name = ?, description = ?, working_group_id = ?, start_at = ?, end_at = ?, location = ? WHERE id = ?'
-  ).run(name, description, workingGroupId, startAt, endAt, location, id);
+  db.prepare<[string, string, number, string, string, string, string | null, number]>(
+    'UPDATE events SET name = ?, description = ?, working_group_id = ?, start_at = ?, end_at = ?, location = ?, location_display_name = ? WHERE id = ?'
+  ).run(name, description, workingGroupId, startAt, endAt, location, locationDisplayName, id);
 
   return findEventById(id);
 }

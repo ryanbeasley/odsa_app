@@ -5,11 +5,6 @@ export const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  itemMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: spacing.xl * 3,
@@ -97,19 +92,15 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     gap: spacing.xs,
   },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   itemName: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
   },
   itemDate: {
-    fontSize: 12,
-    color: colors.textMuted,
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '600',
   },
   attendeeCount: {
     fontSize: 12,
@@ -130,6 +121,11 @@ export const styles = StyleSheet.create({
   metaValue: {
     fontSize: 14,
     color: colors.text,
+  },
+  metaLink: {
+    fontSize: 14,
+    color: colors.primary,
+    textDecorationLine: 'underline',
   },
   seriesBox: {
     marginTop: spacing.xs,
@@ -214,12 +210,18 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  adminActionsRow: {
+  cardActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: spacing.sm,
     gap: spacing.sm,
+  },
+  adminActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   editLabel: {
     fontSize: 12,
@@ -238,6 +240,9 @@ export const styles = StyleSheet.create({
   },
   copyLabel: {
     color: colors.text,
+  },
+  calendarButton: {
+    backgroundColor: colors.surfaceAlt,
   },
   attendingButton: {
     backgroundColor: '#d1e7dd',

@@ -101,6 +101,7 @@ function ensureTables() {
       start_at TEXT NOT NULL,
       end_at TEXT NOT NULL,
       location TEXT NOT NULL,
+      location_display_name TEXT,
       series_uuid TEXT,
       recurrence TEXT,
       series_end_at TEXT,
@@ -155,6 +156,7 @@ function runMigrations() {
     }
   };
   ensureColumn('end_at', 'end_at TEXT NOT NULL DEFAULT ""');
+  ensureColumn('location_display_name', 'location_display_name TEXT');
   ensureColumn('series_uuid', 'series_uuid TEXT');
   ensureColumn('recurrence', 'recurrence TEXT');
   ensureColumn('series_end_at', 'series_end_at TEXT');

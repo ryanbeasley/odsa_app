@@ -79,6 +79,7 @@ export type Event = {
   startAt: string;
   endAt: string;
   location: string;
+  locationDisplayName: string | null;
   seriesUuid: string | null;
   upcomingOccurrences?: {
     eventId: number;

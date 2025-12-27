@@ -9,6 +9,7 @@ type EventPayload = {
   startAt: string;
   endAt: string;
   location: string;
+  locationDisplayName?: string | null;
   recurrence?: RecurrenceRule;
   seriesEndAt?: string | null;
   monthlyPattern?: 'date' | 'weekday';
@@ -73,13 +74,17 @@ export function useEvents(token: string | null) {
       try {
         setSaving(true);
         setError(null);
+        const body = {
+          ...payload,
+          locationDisplayName: payload.locationDisplayName ?? null,
+        };
         const response = await fetch(`${SERVER_URL}/api/events`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
@@ -108,13 +113,17 @@ export function useEvents(token: string | null) {
       try {
         setSaving(true);
         setError(null);
+        const body = {
+          ...payload,
+          locationDisplayName: payload.locationDisplayName ?? null,
+        };
         const response = await fetch(`${SERVER_URL}/api/events/${id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(body),
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));

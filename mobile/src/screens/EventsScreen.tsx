@@ -48,7 +48,10 @@ export function EventsScreen() {
     startAt: '',
     endAt: '',
     location: '',
+    locationDisplayName: '',
   });
+  const [locationType, setLocationType] = useState<'physical' | 'virtual'>('physical');
+  const [locationInput, setLocationInput] = useState('');
   const [isSeries, setIsSeries] = useState(false);
   const [seriesEndAt, setSeriesEndAt] = useState('');
   const [recurrence, setRecurrence] = useState<RecurrenceRule>('none');
@@ -78,6 +81,16 @@ export function EventsScreen() {
     }
   }, [params.eventId, params.seriesId, setAttendingOnly, setFocus]);
 
+  useEffect(() => {
+    const trimmed = locationInput.trim();
+    const nextLocation = trimmed
+      ? locationType === 'physical'
+        ? buildMapLink(trimmed)
+        : trimmed
+      : '';
+    setFormState((prev) => (prev.location === nextLocation ? prev : { ...prev, location: nextLocation }));
+  }, [locationInput, locationType]);
+
   /**
    * Determines when the admin form has enough data to create/update an event.
    */
@@ -85,7 +98,7 @@ export function EventsScreen() {
     return Boolean(
       formState.name.trim() &&
       formState.description.trim() &&
-      formState.location.trim() &&
+      locationInput.trim() &&
       formState.startAt.trim() &&
       formState.endAt.trim() &&
       formState.workingGroupId &&
@@ -108,6 +121,7 @@ export function EventsScreen() {
         startAt: formState.startAt.trim(),
         endAt: formState.endAt.trim(),
         location: formState.location.trim(),
+        locationDisplayName: formState.locationDisplayName.trim() || null,
         recurrence: isSeries ? recurrence : 'none',
         seriesEndAt: isSeries && seriesEndAt ? seriesEndAt.trim() : null,
         monthlyPattern: isSeries && recurrence === 'monthly' ? monthlyPattern : undefined,
@@ -118,7 +132,17 @@ export function EventsScreen() {
       } else {
         await eventsState.createEvent(payload);
       }
-      setFormState({ name: '', description: '', workingGroupId: 0, startAt: '', endAt: '', location: '' });
+      setFormState({
+        name: '',
+        description: '',
+        workingGroupId: 0,
+        startAt: '',
+        endAt: '',
+        location: '',
+        locationDisplayName: '',
+      });
+      setLocationInput('');
+      setLocationType('physical');
       setEditingId(null);
       setIsSeries(false);
       setSeriesEndAt('');
@@ -391,7 +415,17 @@ export function EventsScreen() {
                   onPress={() => {
                     setShowForm(true);
                     setEditingId(null);
-                    setFormState({ name: '', description: '', workingGroupId: 0, startAt: '', endAt: '', location: '' });
+                    setFormState({
+                      name: '',
+                      description: '',
+                      workingGroupId: 0,
+                      startAt: '',
+                      endAt: '',
+                      location: '',
+                      locationDisplayName: '',
+                    });
+                    setLocationInput('');
+                    setLocationType('physical');
                     setIsSeries(false);
                     setSeriesEndAt('');
                     setRecurrence('none');
@@ -505,11 +539,38 @@ export function EventsScreen() {
                       </TouchableOpacity>
                     )}
                   </View>
+                  <SelectField
+                    label="Location type"
+                    value={locationType}
+                    onValueChange={(value) => setLocationType(value as 'physical' | 'virtual')}
+                    options={[
+                      { label: 'Physical location (map link)', value: 'physical' },
+                      { label: 'Virtual meeting link', value: 'virtual' },
+                    ]}
+                  />
+                  {locationType === 'physical' ? (
+                    <TextField
+                      label="Address"
+                      value={locationInput}
+                      onChangeText={setLocationInput}
+                      placeholder="123 Main St, Orlando FL"
+                      helperText="We will generate a map link automatically."
+                    />
+                  ) : (
+                    <TextField
+                      label="Virtual meeting link"
+                      value={locationInput}
+                      onChangeText={setLocationInput}
+                      placeholder="https://zoom.us/j/..."
+                      helperText="Paste the full meeting URL."
+                    />
+                  )}
                   <TextField
-                    label="Location or link"
-                    value={formState.location}
-                    onChangeText={(value) => setFormState((prev) => ({ ...prev, location: value }))}
-                    placeholder="123 Main St or https://discord.gg/..."
+                    label="Location display name (optional)"
+                    value={formState.locationDisplayName}
+                    onChangeText={(value) => setFormState((prev) => ({ ...prev, locationDisplayName: value }))}
+                    placeholder="Community Center Room A"
+                    helperText="Shown on the event card while still linking to the location."
                   />
                   <SelectField
                     label="Working group"
@@ -655,6 +716,8 @@ export function EventsScreen() {
                         setIsSeries(false);
                         setSeriesEndAt('');
                         setRecurrence('none');
+                        setLocationInput('');
+                        setLocationType('physical');
                       }}
                       style={styles.formButton}
                     />
@@ -678,18 +741,24 @@ export function EventsScreen() {
               <View style={styles.list}>
                 {filteredEvents.map((event) => (
                   <View key={event.id} style={styles.listItem}>
-                    <View style={styles.itemHeader}>
-                    <Text style={styles.itemName}>{event.name}</Text>
-                    <View style={styles.itemMeta}>
-                      <Text style={styles.itemDate}>{formatTimestamp(event.startAt)}</Text>
-                      <Text style={styles.attendeeCount}>{event.attendeeCount ?? 0} attending</Text>
-                    </View>
-                  </View>
+                    <Text style={styles.itemDate}>{formatTimestamp(event.startAt)}</Text>
+                    <Text style={styles.itemName} numberOfLines={1} ellipsizeMode="tail">
+                      {event.name}
+                    </Text>
+                    <Text style={styles.attendeeCount}>{event.attendeeCount ?? 0} attending</Text>
                     <Text style={styles.itemDescription}>{event.description}</Text>
                     <Text style={styles.metaLabel}>Working group</Text>
                     <Text style={styles.metaValue}>{event.workingGroupName ?? `#${event.workingGroupId}`}</Text>
                     <Text style={styles.metaLabel}>Location</Text>
-                    <Text style={styles.metaValue}>{event.location}</Text>
+                    {event.location ? (
+                      <TouchableOpacity onPress={() => openLocationLink(event.location)} activeOpacity={0.8}>
+                        <Text style={styles.metaLink} numberOfLines={2}>
+                          {getLocationLabel(event.location, event.locationDisplayName)}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={styles.metaValue}>TBD</Text>
+                    )}
                     <Text style={styles.metaLabel}>Ends</Text>
                     <Text style={styles.metaValue}>{formatTimestamp(event.endAt)}</Text>
                     {event.seriesUuid ? (
@@ -755,6 +824,8 @@ export function EventsScreen() {
                         <TouchableOpacity
                           style={styles.editButton}
                           onPress={() => {
+                            const parsedAddress = parseMapAddress(event.location);
+                            const nextLocationType = parsedAddress ? 'physical' : 'virtual';
                             setFormState({
                               name: event.name,
                               description: event.description,
@@ -762,7 +833,10 @@ export function EventsScreen() {
                               startAt: event.startAt,
                               endAt: event.endAt,
                               location: event.location,
+                              locationDisplayName: event.locationDisplayName ?? '',
                             });
+                            setLocationType(nextLocationType);
+                            setLocationInput(parsedAddress ?? event.location);
                             setIsSeries(Boolean(event.seriesUuid));
                             setSeriesEndAt(event.seriesEndAt ?? '');
                             setRecurrence((event.recurrence as RecurrenceRule) ?? 'none');
@@ -793,45 +867,55 @@ export function EventsScreen() {
                         </TouchableOpacity>
                       </View>
                     ) : (
-                      <TouchableOpacity
-                        style={[styles.editButton, event.attending ? styles.attendingButton : styles.signUpButton]}
-                        onPress={() => {
-                          const isAttending = Boolean(event.attending);
-                          if (event.seriesUuid) {
-                            if (Platform.OS !== 'web') {
-                              Alert.alert(
-                                isAttending ? 'Cancel attendance' : 'Sign up for series',
-                                'Apply to this event only or all in the series?',
-                                [
-                                  {
-                                    text: isAttending ? 'This event' : 'This event only',
-                                    onPress: () => {
-                                      void handleToggleAttendance(event.id, { series: false, attending: isAttending });
+                      <View style={styles.cardActionsRow}>
+                        <TouchableOpacity
+                          style={[styles.editButton, styles.calendarButton]}
+                          onPress={() => openCalendarInvite(event)}
+                          activeOpacity={0.85}
+                        >
+                          <Feather name="calendar" size={14} color={colors.text} />
+                          <Text style={styles.editLabel}>Add to calendar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.editButton, event.attending ? styles.attendingButton : styles.signUpButton]}
+                          onPress={() => {
+                            const isAttending = Boolean(event.attending);
+                            if (event.seriesUuid) {
+                              if (Platform.OS !== 'web') {
+                                Alert.alert(
+                                  isAttending ? 'Cancel attendance' : 'Sign up for series',
+                                  'Apply to this event only or all in the series?',
+                                  [
+                                    {
+                                      text: isAttending ? 'This event' : 'This event only',
+                                      onPress: () => {
+                                        void handleToggleAttendance(event.id, { series: false, attending: isAttending });
+                                      },
                                     },
-                                  },
-                                  {
-                                    text: isAttending ? 'All events' : 'All in series',
-                                    onPress: () => {
-                                      void handleToggleAttendance(event.id, { series: true, attending: isAttending });
+                                    {
+                                      text: isAttending ? 'All events' : 'All in series',
+                                      onPress: () => {
+                                        void handleToggleAttendance(event.id, { series: true, attending: isAttending });
+                                      },
                                     },
-                                  },
-                                  { text: 'Cancel', style: 'cancel' },
-                                ]
-                              );
+                                    { text: 'Cancel', style: 'cancel' },
+                                  ]
+                                );
+                              } else {
+                                setSeriesPrompt({ eventId: event.id, attending: isAttending });
+                              }
                             } else {
-                              setSeriesPrompt({ eventId: event.id, attending: isAttending });
+                              void handleToggleAttendance(event.id, { series: false, attending: isAttending });
                             }
-                          } else {
-                            void handleToggleAttendance(event.id, { series: false, attending: isAttending });
-                          }
-                        }}
-                        activeOpacity={0.85}
-                      >
-                        <Feather name={event.attending ? 'check' : 'user-plus'} size={14} color={event.attending ? '#0f5132' : colors.text} />
-                        <Text style={[styles.editLabel, event.attending ? styles.attendingLabel : styles.signUpLabel]}>
-                          {event.attending ? 'Attending' : 'Sign up'}
-                        </Text>
-                      </TouchableOpacity>
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Feather name={event.attending ? 'check' : 'user-plus'} size={14} color={event.attending ? '#0f5132' : colors.text} />
+                          <Text style={[styles.editLabel, event.attending ? styles.attendingLabel : styles.signUpLabel]}>
+                            {event.attending ? 'Attending' : 'Sign up'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                 ))}
@@ -958,6 +1042,99 @@ function formatMonthlyWeekdayLabel(startAt?: string) {
   const weekIndex = Math.ceil(date.getDate() / 7);
   const weekday = weekdayNames[date.getDay()];
   return `Repeats on the ${getOrdinalWord(weekIndex)} ${weekday} each month`;
+}
+
+function buildMapLink(address: string) {
+  return `https://maps.google.com/?q=${encodeURIComponent(address.trim())}`;
+}
+
+function parseMapAddress(value: string) {
+  if (!value.trim()) {
+    return null;
+  }
+  try {
+    const parsed = new URL(value.trim());
+    const host = parsed.hostname.toLowerCase();
+    if (!host.includes('google') && !host.includes('maps.') && !host.includes('apple.com')) {
+      return null;
+    }
+    const address =
+      parsed.searchParams.get('q') || parsed.searchParams.get('query') || parsed.searchParams.get('address');
+    return address ? decodeURIComponent(address.replace(/\+/g, ' ')) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getLocationLabel(value: string, displayName?: string | null) {
+  const alias = displayName?.trim();
+  if (alias) {
+    return alias;
+  }
+  return parseMapAddress(value) || value;
+}
+
+function isHttpLink(value: string) {
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function openLocationLink(value: string) {
+  if (!isHttpLink(value)) {
+    Alert.alert('Invalid location link', 'This event location is not a valid URL.');
+    return;
+  }
+  void Linking.openURL(value);
+}
+
+function openCalendarInvite(event: Event) {
+  const start = toIcsDate(event.startAt);
+  const end = toIcsDate(event.endAt);
+  if (!start || !end) {
+    Alert.alert('Calendar unavailable', 'This event is missing a valid start or end time.');
+    return;
+  }
+  const summary = escapeIcsText(event.name);
+  const description = escapeIcsText(event.description);
+  const locationLabel = escapeIcsText(getLocationLabel(event.location, event.locationDisplayName));
+  const url = escapeIcsText(event.location);
+  const uid = `${event.id}-${start}@odsa.local`;
+  const timestamp = toIcsDate(new Date().toISOString()) ?? start;
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//ODSA//Events//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${timestamp}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}\\n${url}`,
+    `LOCATION:${locationLabel}`,
+    `URL:${url}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\n');
+  const dataUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(ics)}`;
+  void Linking.openURL(dataUrl);
+}
+
+function toIcsDate(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function escapeIcsText(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
 
 const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
