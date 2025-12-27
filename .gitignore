@@ -12,3 +12,4 @@ server/data/app.db
 mobile/devices.json
 mobile/screen_caps/
 server/dist/
+server/server/data/app.db
