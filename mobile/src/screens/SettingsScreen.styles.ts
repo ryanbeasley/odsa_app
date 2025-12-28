@@ -81,6 +81,10 @@ export const styles = StyleSheet.create({
     color: colors.error,
     fontSize: 13,
   },
+  statusHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
   logoutItem: {
     backgroundColor: colors.surface,
     borderColor: colors.error,

@@ -50,6 +50,7 @@ export type EventRow = {
   end_at: string;
   location: string;
   location_display_name: string | null;
+  discord_event_id: string | null;
   series_uuid: string | null;
   recurrence: string | null;
   series_end_at: string | null;

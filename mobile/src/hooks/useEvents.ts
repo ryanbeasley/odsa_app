@@ -10,6 +10,7 @@ type EventPayload = {
   endAt: string;
   location: string;
   locationDisplayName?: string | null;
+  createDiscordEvent?: boolean;
   recurrence?: RecurrenceRule;
   seriesEndAt?: string | null;
   monthlyPattern?: 'date' | 'weekday';

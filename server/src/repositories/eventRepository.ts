@@ -75,6 +75,45 @@ export function createEvent(
     .get(Number(insert.lastInsertRowid)) as EventRow;
 }
 
+export function upsertDiscordEvent(payload: {
+  discordEventId: string;
+  name: string;
+  description: string;
+  workingGroupId: number;
+  startAt: string;
+  endAt: string;
+  location: string;
+  locationDisplayName: string | null;
+}): EventRow {
+  db.prepare<
+    [string, string, string, number, string, string, string, string | null]
+  >(
+    `INSERT INTO events (discord_event_id, name, description, working_group_id, start_at, end_at, location, location_display_name)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(discord_event_id) DO UPDATE SET
+      name = excluded.name,
+      description = excluded.description,
+      working_group_id = excluded.working_group_id,
+      start_at = excluded.start_at,
+      end_at = excluded.end_at,
+      location = excluded.location,
+      location_display_name = excluded.location_display_name`
+  ).run(
+    payload.discordEventId,
+    payload.name,
+    payload.description,
+    payload.workingGroupId,
+    payload.startAt,
+    payload.endAt,
+    payload.location,
+    payload.locationDisplayName
+  );
+
+  return db
+    .prepare<[string], EventRow>('SELECT * FROM events WHERE discord_event_id = ?')
+    .get(payload.discordEventId) as EventRow;
+}
+
 /**
  * Creates a series of related events sharing a generated series UUID.
  */
@@ -122,6 +161,12 @@ export function findEventById(id: number): (EventRow & { working_group_name?: st
     .get(id);
 }
 
+export function findEventByDiscordEventId(discordEventId: string): EventRow | undefined {
+  return db
+    .prepare<[string], EventRow>('SELECT * FROM events WHERE discord_event_id = ?')
+    .get(discordEventId);
+}
+
 /**
  * Updates an event's core fields and returns the hydrated record.
  */
@@ -140,6 +185,10 @@ export function updateEvent(
   ).run(name, description, workingGroupId, startAt, endAt, location, locationDisplayName, id);
 
   return findEventById(id);
+}
+
+export function updateEventDiscordId(id: number, discordEventId: string): void {
+  db.prepare<[string, number]>('UPDATE events SET discord_event_id = ? WHERE id = ?').run(discordEventId, id);
 }
 
 /**

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -7,6 +8,7 @@ import { styles } from './SettingsScreen.styles';
 import { useAuth } from '../hooks/useAuth';
 import { useAppData } from '../providers/AppDataProvider';
 import { useLogoutHandler } from '../hooks/useLogoutHandler';
+import { SERVER_URL } from '../config';
 
 /**
  * Settings hub for account info, admin tools, and notification preferences.
@@ -14,13 +16,15 @@ import { useLogoutHandler } from '../hooks/useLogoutHandler';
 export function SettingsScreen() {
   const auth = useAuth();
   const router = useRouter();
-  const { push } = useAppData();
+  const { push, events } = useAppData();
   const handleLogout = useLogoutHandler();
   const accountUser = (auth.sessionUser ?? auth.user)!;
   const canToggleAdmin = auth.isSessionAdmin;
   const isAdminView = auth.isViewingAsAdmin;
   const baseRoleLabel = canToggleAdmin ? 'Admin' : 'Member';
   const viewStatus = isAdminView ? 'Admin view' : 'Member view';
+  const [discordSyncing, setDiscordSyncing] = useState(false);
+  const [discordSyncMessage, setDiscordSyncMessage] = useState<string | null>(null);
 
   /**
    * Toggles announcement push notifications.
@@ -49,6 +53,35 @@ export function SettingsScreen() {
       await push.toggleEventAlerts();
     } catch {
       // handled downstream
+    }
+  };
+
+  const handleDiscordSync = async () => {
+    if (discordSyncing || !auth.token) {
+      return;
+    }
+    try {
+      setDiscordSyncing(true);
+      setDiscordSyncMessage(null);
+      const response = await fetch(`${SERVER_URL}/api/discord-sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${auth.token}`,
+        },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error ?? 'Failed to sync Discord events');
+      }
+      const data = (await response.json()) as { synced: number; skipped?: number };
+      const skipped = data.skipped ?? 0;
+      setDiscordSyncMessage(`Synced ${data.synced} events. Skipped ${skipped}.`);
+      void events.refresh();
+    } catch (error) {
+      setDiscordSyncMessage(error instanceof Error ? error.message : 'Failed to sync Discord events');
+    } finally {
+      setDiscordSyncing(false);
     }
   };
 
@@ -190,6 +223,31 @@ export function SettingsScreen() {
             {push.error ? <Text style={styles.errorText}>{push.error}</Text> : null}
           </View>
         </SectionCard>
+
+        {isAdminView ? (
+          <SectionCard style={styles.section}>
+            <Text style={styles.sectionLabel}>Admin tools</Text>
+            <Text style={styles.sectionDescription}>Sync external event sources.</Text>
+
+            <View style={styles.navPanel}>
+              <TouchableOpacity style={styles.navItem} onPress={handleDiscordSync} activeOpacity={0.8}>
+                <View style={styles.navItemContent}>
+                  <Feather name="repeat" size={18} color={colors.text} />
+                  <View style={styles.navTextGroup}>
+                    <Text style={styles.navLabel}>Sync Events From Discord</Text>
+                    <Text style={styles.navDescription}>
+                      Import scheduled events from the connected Discord server.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.statusBadge, discordSyncing && styles.statusBadgeMuted]}>
+                  {discordSyncing ? 'Syncing...' : 'Run'}
+                </Text>
+              </TouchableOpacity>
+              {discordSyncMessage ? <Text style={styles.statusHint}>{discordSyncMessage}</Text> : null}
+            </View>
+          </SectionCard>
+        ) : null}
 
         <SectionCard style={styles.section}>
           <Text style={styles.sectionLabel}>Session</Text>

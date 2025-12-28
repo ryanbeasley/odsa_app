@@ -8,6 +8,8 @@ export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 export const EXPO_PUSH_TOKEN = process.env.EXPO_PUSH_ACCESS_TOKEN ?? '';
 export const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY ?? '';
 export const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY ?? '';
+export const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? '';
+export const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID ?? '';
 // push notification automation checks every 5 minutes
 export const EVENT_ALERT_INTERVAL_MS = Number(process.env.EVENT_ALERT_INTERVAL_MS ?? 5 * 60 * 1000);
 // first check one day in advance

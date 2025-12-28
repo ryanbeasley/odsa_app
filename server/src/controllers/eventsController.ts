@@ -14,7 +14,8 @@ import {
   listUpcomingEvents,
   listUserEventIds,
   updateEvent,
-  findEventById
+  findEventById,
+  updateEventDiscordId
 } from '../repositories/eventRepository';
 import {
   createWorkingGroup,
@@ -25,6 +26,7 @@ import {
 } from '../repositories/workingGroupRepository';
 import { serializeEvent, serializeWorkingGroup } from '../utils/serializer';
 import { MonthlyPattern, RecurrenceRule } from '../types';
+import { createDiscordEventFromApp, updateDiscordEventFromApp } from '../services/discordService';
 
 const router = Router();
 
@@ -167,12 +169,12 @@ router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
 /**
  * Creates single or recurring events (admin only).
  */
-router.post('/events', authenticate, requireAdmin, (req, res) => {
+router.post('/events', authenticate, requireAdmin, async (req, res) => {
   const error = validateEvent(req.body);
   if (error) {
     return res.status(400).json({ error });
   }
-  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrence, seriesEndAt, monthlyPattern } = req.body as {
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrence, seriesEndAt, monthlyPattern } = req.body as {
     name: string;
     description: string;
     workingGroupId: number;
@@ -180,6 +182,7 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
     endAt: string;
     location: string;
     locationDisplayName?: string | null;
+    createDiscordEvent?: boolean;
     recurrence?: RecurrenceRule;
     seriesEndAt?: string | null;
     monthlyPattern?: MonthlyPattern;
@@ -229,6 +232,13 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
     )
   );
 
+  if (createDiscordEvent) {
+    const target = createdEvents[0];
+    const discordEventId = await createDiscordEventFromApp(target);
+    updateEventDiscordId(target.id, discordEventId);
+    target.discord_event_id = discordEventId;
+  }
+
   const first = createdEvents[0];
   res.status(201).json({ event: serializeEvent({ ...first, working_group_name: workingGroup.name }) });
 });
@@ -236,7 +246,7 @@ router.post('/events', authenticate, requireAdmin, (req, res) => {
 /**
  * Updates an event (or regenerates its recurrence) by ID.
  */
-router.patch('/events/:id', authenticate, requireAdmin, (req, res) => {
+router.patch('/events/:id', authenticate, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: 'id must be a positive number' });
@@ -270,7 +280,7 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     return res.status(400).json({ error });
   }
 
-  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrence, seriesEndAt, monthlyPattern } = req.body as {
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrence, seriesEndAt, monthlyPattern } = req.body as {
     name: string;
     description: string;
     workingGroupId: number;
@@ -278,6 +288,7 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     endAt: string;
     location: string;
     locationDisplayName?: string | null;
+    createDiscordEvent?: boolean;
     recurrence?: RecurrenceRule;
     seriesEndAt?: string | null;
     monthlyPattern?: MonthlyPattern;
@@ -338,6 +349,12 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
         payload.seriesEndAt
       )
     );
+    if (createDiscordEvent) {
+      const target = createdEvents[0];
+      const discordEventId = await createDiscordEventFromApp(target);
+      updateEventDiscordId(target.id, discordEventId);
+      target.discord_event_id = discordEventId;
+    }
     const first = createdEvents[0];
     return res.json({ event: serializeEvent({ ...first, working_group_name: workingGroup.name }) });
   }
@@ -355,6 +372,15 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     location.trim(),
     normalizeDisplayName(locationDisplayName)
   );
+  if (createDiscordEvent && single) {
+    if (single.discord_event_id) {
+      await updateDiscordEventFromApp(single.discord_event_id, single);
+    } else {
+      const discordEventId = await createDiscordEventFromApp(single);
+      updateEventDiscordId(single.id, discordEventId);
+      single.discord_event_id = discordEventId;
+    }
+  }
   res.json({ event: single ? serializeEvent({ ...single, working_group_name: workingGroup.name }) : null });
 });
 
@@ -437,7 +463,7 @@ router.delete('/events/:id/attendees', authenticate, (req: AuthedRequest, res) =
  * Validates the incoming event payload and returns an error message, if any.
  */
 function validateEvent(body: unknown) {
-  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrence, monthlyPattern } =
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrence, monthlyPattern } =
     (body ?? {}) as Record<string, unknown>;
   if (typeof name !== 'string' || !name.trim()) {
     return 'name is required';
@@ -462,6 +488,9 @@ function validateEvent(body: unknown) {
   }
   if (locationDisplayName !== undefined && locationDisplayName !== null && typeof locationDisplayName !== 'string') {
     return 'locationDisplayName must be a string';
+  }
+  if (createDiscordEvent !== undefined && typeof createDiscordEvent !== 'boolean') {
+    return 'createDiscordEvent must be a boolean';
   }
   if (recurrence === 'monthly' && monthlyPattern && monthlyPattern !== 'date' && monthlyPattern !== 'weekday') {
     return 'monthlyPattern must be "date" or "weekday"';

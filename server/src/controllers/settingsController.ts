@@ -15,6 +15,7 @@ import {
 import { listUsers, updateUserProfile, updateUserRole, findUserByEmail } from '../repositories/userRepository';
 import { serializePushSubscription, serializeWebPushSubscription, toPublicUser } from '../utils/serializer';
 import { signToken } from '../utils/jwt';
+import { syncDiscordEvents } from '../services/discordService';
 
 const router = Router();
 
@@ -200,6 +201,19 @@ router.patch('/users/:id/role', authenticate, requireAdmin, (req: AuthedRequest,
     return res.status(404).json({ error: 'User not found' });
   }
   return res.json({ user: toPublicUser(updated) });
+});
+
+/**
+ * Syncs scheduled events from Discord into the local database (admin only).
+ */
+router.post('/discord-sync', authenticate, requireAdmin, async (_req: AuthedRequest, res) => {
+  try {
+    const result = await syncDiscordEvents();
+    return res.json({ synced: result.count, skipped: result.skipped });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to sync Discord events';
+    return res.status(500).json({ error: message });
+  }
 });
 
 export default router;

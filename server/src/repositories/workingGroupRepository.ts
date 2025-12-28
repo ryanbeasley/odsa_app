@@ -16,6 +16,15 @@ export function findWorkingGroupById(id: number): WorkingGroupRow | undefined {
 }
 
 /**
+ * Retrieves a working group by name (case-insensitive).
+ */
+export function findWorkingGroupByName(name: string): WorkingGroupRow | undefined {
+  return db
+    .prepare<[string], WorkingGroupRow>('SELECT * FROM working_groups WHERE LOWER(name) = LOWER(?)')
+    .get(name.trim());
+}
+
+/**
  * Inserts a new working group row.
  */
 export function createWorkingGroup(name: string, description: string, members: string): WorkingGroupRow {

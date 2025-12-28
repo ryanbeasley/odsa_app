@@ -102,6 +102,7 @@ function ensureTables() {
       end_at TEXT NOT NULL,
       location TEXT NOT NULL,
       location_display_name TEXT,
+      discord_event_id TEXT,
       series_uuid TEXT,
       recurrence TEXT,
       series_end_at TEXT,
@@ -157,9 +158,11 @@ function runMigrations() {
   };
   ensureColumn('end_at', 'end_at TEXT NOT NULL DEFAULT ""');
   ensureColumn('location_display_name', 'location_display_name TEXT');
+  ensureColumn('discord_event_id', 'discord_event_id TEXT');
   ensureColumn('series_uuid', 'series_uuid TEXT');
   ensureColumn('recurrence', 'recurrence TEXT');
   ensureColumn('series_end_at', 'series_end_at TEXT');
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS events_discord_event_id_idx ON events(discord_event_id)').run();
 
   const userColumns = db.prepare<[], { name: string }>('PRAGMA table_info(users)').all();
   if (!userColumns.some((col) => col.name === 'first_name')) {

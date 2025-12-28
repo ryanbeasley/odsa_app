@@ -50,6 +50,7 @@ export function EventsScreen() {
     location: '',
     locationDisplayName: '',
   });
+  const [createDiscordEvent, setCreateDiscordEvent] = useState(false);
   const [locationType, setLocationType] = useState<'physical' | 'virtual'>('physical');
   const [locationInput, setLocationInput] = useState('');
   const [isSeries, setIsSeries] = useState(false);
@@ -122,6 +123,7 @@ export function EventsScreen() {
         endAt: formState.endAt.trim(),
         location: formState.location.trim(),
         locationDisplayName: formState.locationDisplayName.trim() || null,
+        createDiscordEvent,
         recurrence: isSeries ? recurrence : 'none',
         seriesEndAt: isSeries && seriesEndAt ? seriesEndAt.trim() : null,
         monthlyPattern: isSeries && recurrence === 'monthly' ? monthlyPattern : undefined,
@@ -141,6 +143,7 @@ export function EventsScreen() {
         location: '',
         locationDisplayName: '',
       });
+      setCreateDiscordEvent(false);
       setLocationInput('');
       setLocationType('physical');
       setEditingId(null);
@@ -424,6 +427,7 @@ export function EventsScreen() {
                       location: '',
                       locationDisplayName: '',
                     });
+                    setCreateDiscordEvent(false);
                     setLocationInput('');
                     setLocationType('physical');
                     setIsSeries(false);
@@ -572,6 +576,18 @@ export function EventsScreen() {
                     placeholder="Community Center Room A"
                     helperText="Shown on the event card while still linking to the location."
                   />
+                  <TouchableOpacity
+                    style={styles.checkboxRow}
+                    onPress={() => setCreateDiscordEvent((prev) => !prev)}
+                    activeOpacity={0.85}
+                  >
+                    <Feather
+                      name={createDiscordEvent ? 'check-square' : 'square'}
+                      size={18}
+                      color={colors.text}
+                    />
+                    <Text style={styles.checkboxLabel}>Create a Discord event</Text>
+                  </TouchableOpacity>
                   <SelectField
                     label="Working group"
                     value={formState.workingGroupId}
@@ -835,6 +851,7 @@ export function EventsScreen() {
                               location: event.location,
                               locationDisplayName: event.locationDisplayName ?? '',
                             });
+                            setCreateDiscordEvent(Boolean(event.discordEventId));
                             setLocationType(nextLocationType);
                             setLocationInput(parsedAddress ?? event.location);
                             setIsSeries(Boolean(event.seriesUuid));

@@ -37,6 +37,8 @@ This loads environment variables from a `.env` file if present. Available vars:
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | _(empty)_ | Optional seed admin |
 | `EXPO_PUSH_ACCESS_TOKEN` | _(empty)_ | Expo push token used to send mobile notifications |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | _(empty)_ | Web Push VAPID keys used for browser notifications |
+| `DISCORD_BOT_TOKEN` | _(empty)_ | Discord bot token used to sync scheduled events |
+| `DISCORD_GUILD_ID` | _(empty)_ | Discord server (guild) ID to sync from |
 
 The server exposes:
 

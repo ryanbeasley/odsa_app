@@ -73,6 +73,7 @@ export function serializeEvent(row: EventRow & { working_group_name?: string }) 
     endAt: row.end_at,
     location: row.location,
     locationDisplayName: row.location_display_name ?? null,
+    discordEventId: row.discord_event_id ?? null,
     seriesUuid: row.series_uuid ?? null,
     recurrence: row.recurrence ?? null,
     seriesEndAt: row.series_end_at ?? null,

@@ -80,6 +80,7 @@ export type Event = {
   endAt: string;
   location: string;
   locationDisplayName: string | null;
+  discordEventId?: string | null;
   seriesUuid: string | null;
   upcomingOccurrences?: {
     eventId: number;
