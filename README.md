@@ -103,6 +103,61 @@ npm run start
 
 Use the Expo Go app (or an emulator) to scan the QR code. The mobile UI shows announcements, admin tools, and settings.
 
+### Mobile deployment instructions
+
+#### iOS (App Store / TestFlight)
+
+```bash
+cd mobile
+npx eas build -p ios --profile production
+npx eas submit -p ios --latest
+```
+
+#### Android (Google Play)
+
+```bash
+cd mobile
+npx eas build -p android --profile production
+npx eas submit -p android --latest
+```
+
+### Server deployment instructions
+
+1. Log into the cloud console for the VM server.
+2. Navigate to the repo:
+   ```bash
+   cd /opt/odsa_app
+   ```
+3. Commit any local changes to `server/data/app.db` or `server/dist` if you want to keep them:
+   ```bash
+   git add server/data/app.db server/dist
+   git commit -m "server artifacts"
+   ```
+4. Pull the latest code:
+   ```bash
+   git pull
+   ```
+5. Stop the running server process:
+   ```bash
+   pkill -f "node /opt/odsa_app/server/dist/index.js"
+   ```
+6. Install deps and build:
+   ```bash
+   cd /opt/odsa_app/server
+   npm install
+   npm run build
+   ```
+7. Update any required environment variables (edit `server/.env` if used).
+8. Restart the server:
+   - If using PM2:
+     ```bash
+     pm2 restart odsa-app
+     ```
+   - Or plain Node:
+     ```bash
+     npm start
+     ```
+
 ### Push notifications
 
 - **Mobile (Expo):** On the Settings screen, toggle “Announcement alerts” to register the device’s Expo push token with the API (`/api/push-subscriptions`). The server will send Expo pushes to all registered tokens when an admin posts an announcement. Set `EXPO_PUSH_ACCESS_TOKEN` on the server to enable delivery.
