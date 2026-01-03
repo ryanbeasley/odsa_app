@@ -10,6 +10,12 @@ import {
   updateEventDiscordId,
 } from '../repositories/eventRepository';
 import { findWorkingGroupById, findWorkingGroupByName } from '../repositories/workingGroupRepository';
+import {
+  DiscordEntityType,
+  DiscordPrivacyLevel,
+  DiscordRecurrenceFrequency,
+  DiscordWeekday,
+} from './discordTypes';
 
 type DiscordScheduledEvent = {
   id: string;
@@ -39,16 +45,17 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const DEFAULT_DURATION_MS = 60 * 60 * 1000;
 
 export async function syncDiscordEvents() {
+  console.logEnter();
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     throw new Error('Discord is not configured on the server.');
   }
-  console.log('[discord-sync] Starting sync for guild', DISCORD_GUILD_ID);
+  console.log('Starting sync for guild', DISCORD_GUILD_ID);
   const events = await fetchDiscordEvents();
-  console.log('[discord-sync] Fetched', events.length, 'scheduled events');
+  console.log('Fetched', events.length, 'scheduled events');
   let createdOrUpdated = 0;
   let skipped = 0;
   for (const event of events) {
-    console.log('[discord-sync] Processing event', {
+    console.log('Processing event', {
       id: event.id,
       name: event.name,
       description: event.description ?? null,
@@ -59,24 +66,33 @@ export async function syncDiscordEvents() {
       channelId: event.channel_id ?? null,
     });
     if (!event.scheduled_start_time) {
-      console.log('[discord-sync] Skipping event without start time', event.id);
+      console.log('Skipping event without start time', event.id);
       skipped += 1;
       continue;
     }
     const startAt = new Date(event.scheduled_start_time);
     if (Number.isNaN(startAt.getTime())) {
-      console.log('[discord-sync] Skipping event with invalid start time', event.id);
+      console.log('Skipping event with invalid start time', event.id);
+      skipped += 1;
+      continue;
+    }
+    const parsedDescription = parseDescription(event.description);
+    const workingGroupId = resolveWorkingGroupId(parsedDescription.workingGroupName);
+    if (!workingGroupId) {
+      console.log('Skipping event without matching working group', event.id, parsedDescription.workingGroupName ?? '');
+      skipped += 1;
+      continue;
+    }
+    if (event.recurrence_rule && !isSupportedRecurrenceRule(event.recurrence_rule)) {
+      console.warn('Skipping event with unsupported recurrence rule', {
+        id: event.id,
+        name: event.name,
+        recurrenceRule: event.recurrence_rule,
+      });
       skipped += 1;
       continue;
     }
     const endAt = event.scheduled_end_time ? new Date(event.scheduled_end_time) : new Date(startAt.getTime() + DEFAULT_DURATION_MS);
-    const parsedDescription = parseDescription(event.description);
-    const workingGroupId = resolveWorkingGroupId(parsedDescription.workingGroupName);
-    if (!workingGroupId) {
-      console.log('[discord-sync] Skipping event without matching working group', event.id, parsedDescription.workingGroupName ?? '');
-      skipped += 1;
-      continue;
-    }
     const locationDetails = buildLocationDetails(event);
     if (event.recurrence_rule && mapDiscordRecurrence(event.recurrence_rule)) {
       const result = upsertDiscordSeriesEvent({
@@ -89,7 +105,7 @@ export async function syncDiscordEvents() {
       createdOrUpdated += result;
       continue;
     }
-    upsertDiscordEvent({
+    const thisEvent = {
       discordEventId: event.id,
       name: event.name.trim(),
       description: parsedDescription.cleaned || 'Discord event',
@@ -98,15 +114,19 @@ export async function syncDiscordEvents() {
       endAt: endAt.toISOString(),
       location: locationDetails.link,
       locationDisplayName: locationDetails.displayName,
-    });
+      recurrenceRule: event.recurrence_rule ? JSON.stringify(event.recurrence_rule) : null,
+    };
+    upsertDiscordEvent(thisEvent);
+    console.debug('Upserted single event from Discord:', thisEvent);
     createdOrUpdated += 1;
   }
 
-  console.log('[discord-sync] Sync complete', { createdOrUpdated, skipped });
+  console.log('Sync complete', { createdOrUpdated, skipped });
   return { count: createdOrUpdated, skipped };
 }
 
 export async function createDiscordEventFromApp(event: EventRow) {
+  console.logEnter();
   ensureDiscordConfigured();
   const payload = buildDiscordEventPayload(event);
   const response = await fetch(`${DISCORD_API}/guilds/${DISCORD_GUILD_ID}/scheduled-events`, {
@@ -126,6 +146,7 @@ export async function createDiscordEventFromApp(event: EventRow) {
 }
 
 export async function updateDiscordEventFromApp(discordEventId: string, event: EventRow) {
+  console.logEnter();
   ensureDiscordConfigured();
   const payload = buildDiscordEventPayload(event);
   const response = await fetch(`${DISCORD_API}/guilds/${DISCORD_GUILD_ID}/scheduled-events/${discordEventId}`, {
@@ -157,7 +178,7 @@ async function fetchDiscordEvents(): Promise<DiscordScheduledEvent[]> {
 }
 
 function buildLocationDetails(event: DiscordScheduledEvent) {
-  if (event.entity_type === 3) {
+  if (event.entity_type === DiscordEntityType.EXTERNAL) {
     const rawLocation = event.entity_metadata?.location?.trim() ?? 'Discord event';
     if (isHttpLink(rawLocation)) {
       return { link: rawLocation, displayName: null };
@@ -169,7 +190,7 @@ function buildLocationDetails(event: DiscordScheduledEvent) {
   }
   const channelId = event.channel_id;
   const link = channelId ? `https://discord.com/channels/${DISCORD_GUILD_ID}/${channelId}` : `https://discord.com/channels/${DISCORD_GUILD_ID}`;
-  const displayName = event.entity_type === 1 ? 'Discord stage' : 'Discord voice';
+  const displayName = event.entity_type === DiscordEntityType.STAGE_INSTANCE ? 'Discord stage' : 'Discord voice';
   return { link, displayName };
 }
 
@@ -177,14 +198,14 @@ function buildDiscordEventPayload(event: EventRow) {
   const location = (event.location_display_name ?? event.location ?? 'TBD').trim();
   const groupName = event.working_group_id ? findWorkingGroupById(event.working_group_id)?.name ?? null : null;
   const workingGroupTag = groupName ? `\n\n\`\`\`working-group-id=${groupName}\`\`\`` : '';
-  const recurrenceRule = buildDiscordRecurrenceRule(event);
+  const recurrenceRule = parseStoredRecurrenceRule(event.recurrence_rule);
   const payload: Record<string, unknown> = {
     name: event.name,
     description: `${event.description}${workingGroupTag}`,
     scheduled_start_time: new Date(event.start_at).toISOString(),
     scheduled_end_time: new Date(event.end_at).toISOString(),
-    privacy_level: 2,
-    entity_type: 3,
+    privacy_level: DiscordPrivacyLevel.GUILD_ONLY,
+    entity_type: DiscordEntityType.EXTERNAL,
     entity_metadata: {
       location,
     },
@@ -210,10 +231,16 @@ function upsertDiscordSeriesEvent(params: {
 }) {
   const { event, workingGroupId, description, location, locationDisplayName } = params;
   const occurrences = buildSeriesOccurrences(event);
+  console.log('Built', occurrences.length, 'occurrences for series event', event.id);
   if (!occurrences.length) {
     return 0;
   }
   const existing = findEventByDiscordEventId(event.id);
+  console.log('Existing event lookup for series', {
+    discordEventId: event.id,
+    existingEventId: existing?.id ?? null,
+    existingSeriesUuid: existing?.series_uuid ?? null,
+  });
   if (existing?.series_uuid) {
     deleteEventsBySeries(existing.series_uuid);
   } else if (existing) {
@@ -221,7 +248,7 @@ function upsertDiscordSeriesEvent(params: {
   }
   const seriesUuid = randomUUID();
   const seriesEndAt = occurrences[occurrences.length - 1].endAt.toISOString();
-  const recurrence = mapDiscordRecurrence(event.recurrence_rule);
+  const recurrenceRuleJson = event.recurrence_rule ? JSON.stringify(event.recurrence_rule) : null;
   occurrences.forEach((occ, index) => {
     const created = createEvent(
       event.name.trim(),
@@ -232,7 +259,7 @@ function upsertDiscordSeriesEvent(params: {
       location,
       locationDisplayName,
       seriesUuid,
-      recurrence,
+      recurrenceRuleJson,
       seriesEndAt
     );
     if (index === 0) {
@@ -246,19 +273,57 @@ function mapDiscordRecurrence(rule?: DiscordRecurrenceRule | null) {
   if (!rule) {
     return null;
   }
-  if (rule.frequency === 3) {
+  if (rule.frequency === DiscordRecurrenceFrequency.DAILY) {
     return 'daily';
   }
-  if (rule.frequency === 2) {
+  if (rule.frequency === DiscordRecurrenceFrequency.WEEKLY) {
     return 'weekly';
   }
-  if (rule.frequency === 1) {
+  if (rule.frequency === DiscordRecurrenceFrequency.MONTHLY) {
     return 'monthly';
   }
   return null;
 }
 
+function isSupportedRecurrenceRule(rule: DiscordRecurrenceRule) {
+  if (!rule.frequency) {
+    return false;
+  }
+  const interval = rule.interval ?? 1;
+  if (interval !== 1) {
+    return false;
+  }
+  if (rule.frequency === DiscordRecurrenceFrequency.DAILY) {
+    return !rule.by_weekday?.length && !rule.by_month?.length && !rule.by_month_day?.length && !rule.by_n_weekday?.length;
+  }
+  if (rule.frequency === DiscordRecurrenceFrequency.WEEKLY) {
+    if (rule.by_weekday && rule.by_weekday.length > 1) {
+      return false;
+    }
+    return !rule.by_month?.length && !rule.by_month_day?.length && !rule.by_n_weekday?.length;
+  }
+  if (rule.frequency === DiscordRecurrenceFrequency.MONTHLY) {
+    if (rule.by_month?.length) {
+      return false;
+    }
+    if (rule.by_weekday?.length) {
+      return false;
+    }
+    if (rule.by_n_weekday && rule.by_n_weekday.length > 1) {
+      return false;
+    }
+    if (rule.by_month_day && rule.by_month_day.length > 1) {
+      return false;
+    }
+    const hasNthWeekday = Boolean(rule.by_n_weekday?.length);
+    const hasMonthDay = Boolean(rule.by_month_day?.length);
+    return hasNthWeekday !== hasMonthDay;
+  }
+  return false;
+}
+
 function buildSeriesOccurrences(event: DiscordScheduledEvent) {
+  console.logEnter();
   const rule = event.recurrence_rule;
   if (!rule) {
     return [];
@@ -286,7 +351,9 @@ function buildSeriesOccurrences(event: DiscordScheduledEvent) {
   if (recurrence === 'daily') {
     let cursor = new Date(start);
     while (cursor <= endLimit) {
-      occurrences.push(buildOccurrence(cursor, new Date(cursor.getTime() + durationMs)));
+      if (!rule.by_weekday || rule.by_weekday.includes(mapDiscordWeekday(cursor))) {
+        occurrences.push(buildOccurrence(cursor, new Date(cursor.getTime() + durationMs)));
+      }
       cursor = new Date(cursor.getTime() + interval * 24 * 60 * 60 * 1000);
     }
     return occurrences;
@@ -352,7 +419,7 @@ function addDays(date: Date, days: number) {
 }
 
 function discordWeekdayToJs(day: number) {
-  if (day === 6) {
+  if (day === DiscordWeekday.SUNDAY) {
     return 0;
   }
   return day + 1;
@@ -401,36 +468,21 @@ function nthWeekdayOfMonth(baseMonth: Date, weekday: number, n: number) {
   return date;
 }
 
-function buildDiscordRecurrenceRule(event: EventRow) {
-  if (!event.recurrence || event.recurrence === 'none') {
+function parseStoredRecurrenceRule(value: string | null): DiscordRecurrenceRule | null {
+  if (!value) {
     return null;
   }
-  const start = new Date(event.start_at);
-  if (Number.isNaN(start.getTime())) {
+  try {
+    return JSON.parse(value) as DiscordRecurrenceRule;
+  } catch {
     return null;
   }
-  const frequency = event.recurrence === 'daily' ? 3 : event.recurrence === 'weekly' ? 2 : 1;
-  const rule: Record<string, unknown> = {
-    start: start.toISOString(),
-    frequency,
-    interval: 1,
-  };
-
-  if (event.recurrence === 'weekly') {
-    rule.by_weekday = [mapDiscordWeekday(start)];
-  }
-
-  if (event.recurrence === 'monthly') {
-    rule.by_month_day = [start.getUTCDate()];
-  }
-
-  return rule;
 }
 
 function mapDiscordWeekday(date: Date) {
   const day = date.getUTCDay();
   if (day === 0) {
-    return 6;
+    return DiscordWeekday.SUNDAY;
   }
   return day - 1;
 }
@@ -453,12 +505,12 @@ function parseDescription(description?: string | null) {
 }
 
 function resolveWorkingGroupId(name: string | null) {
-  console.log('[discord-sync] Resolving working group', {
+  console.log('Resolving working group', {
     requestedName: name,
   });
   if (name) {
     const group = findWorkingGroupByName(name);
-    console.log('[discord-sync] Working group lookup by name', {
+    console.log('Working group lookup by name', {
       name,
       matchedId: group?.id ?? null,
     });

@@ -16,20 +16,24 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 router.post('/signup', (req, res) => {
   const { email, password } = req.body ?? {};
   if (typeof email !== 'string' || !email.trim()) {
+    console.log('Attempt to register with invalid email:', email);
     return res.status(400).json({ error: 'email is required' });
   }
   if (typeof password !== 'string' || password.length < 6) {
+    console.log('Attempt to register with short password:', password);
     return res.status(400).json({ error: 'password must be at least 6 characters' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
   if (findUserByEmail(normalizedEmail)) {
+    console.log('Attempt to register with existing email:', normalizedEmail);
     return res.status(409).json({ error: 'email already registered' });
   }
 
   const passwordHash = bcrypt.hashSync(password, 10);
   const user = createUser(normalizedEmail, passwordHash, 'user');
   const token = signToken(user);
+  console.log('Registered new user:', normalizedEmail);
   res.status(201).json({ token, user: toPublicUser(user) });
 });
 
@@ -39,17 +43,20 @@ router.post('/signup', (req, res) => {
 router.post('/login', (req, res) => {
   const { email, password } = req.body ?? {};
   if (typeof email !== 'string' || typeof password !== 'string') {
+    console.log('Attempt to log in with missing credentials:', req.body);
     return res.status(400).json({ error: 'email and password are required' });
   }
   const normalizedEmail = email.trim().toLowerCase();
   const user = findUserByEmail(normalizedEmail);
   if (!user) {
+    console.log('Failed login attempt for non-existent email:', normalizedEmail);
     return res.status(401).json({ error: 'invalid credentials' });
   }
   if (!bcrypt.compareSync(password, user.password_hash)) {
+    console.log('Failed login attempt for email with incorrect password:', normalizedEmail);
     return res.status(401).json({ error: 'invalid credentials' });
   }
-
+  console.log('User logged in:', normalizedEmail);
   const token = signToken(user);
   res.json({ token, user: toPublicUser(user) });
 });
@@ -88,6 +95,7 @@ router.post('/oauth/google', async (req, res) => {
     const token = signToken(user);
     res.json({ token, user: toPublicUser(user) });
   } catch (err) {
+    console.error(err);
     return res.status(401).json({ error: 'Invalid Google token' });
   }
 });

@@ -88,7 +88,7 @@ export type Event = {
     attendeeCount?: number;
     attending?: boolean;
   }[];
-  recurrence: RecurrenceRule | null;
+  recurrenceRule: DiscordRecurrenceRule | null;
   seriesEndAt: string | null;
   attending?: boolean;
   attendeeCount?: number;
@@ -104,6 +104,40 @@ export type EventCreateResponse = {
 };
 
 export type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'monthly';
+
+export enum DiscordRecurrenceFrequency {
+  YEARLY = 0,
+  MONTHLY = 1,
+  WEEKLY = 2,
+  DAILY = 3,
+}
+
+export enum DiscordWeekday {
+  MONDAY = 0,
+  TUESDAY = 1,
+  WEDNESDAY = 2,
+  THURSDAY = 3,
+  FRIDAY = 4,
+  SATURDAY = 5,
+  SUNDAY = 6,
+}
+
+export type DiscordRecurrenceRule = {
+  start: string;
+  frequency: number;
+  interval?: number | null;
+  by_weekday?: number[] | null;
+  by_n_weekday?: Array<{ n: number; day: number }> | null;
+  by_month_day?: number[] | null;
+};
+
+export type DiscordRecurrenceRuleInput = {
+  frequency?: number;
+  interval?: number | null;
+  by_weekday?: number[] | null;
+  by_n_weekday?: Array<{ n: number; day: number }> | null;
+  by_month_day?: number[] | null;
+};
 
 export type UsersResponse = {
   users: User[];

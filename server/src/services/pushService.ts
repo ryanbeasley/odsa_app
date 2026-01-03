@@ -4,6 +4,7 @@ import { listPushSubscriptions } from '../repositories/pushSubscriptionRepositor
 import { listWebPushSubscriptions } from '../repositories/webPushRepository';
 import { listEventAlertCandidates } from '../repositories/pushSubscriptionRepository';
 import { hasEventNotificationLog, recordEventNotificationLog } from '../repositories/notificationRepository';
+import { runWithLogContext, buildLogContext } from '../utils/logContext';
 
 type ExpoPushMessage = { to: string; title: string; body: string };
 
@@ -124,12 +125,29 @@ export function startEventAlertScheduler() {
   if (eventAlertTimer) {
     return;
   }
+
   const runner = () => {
-    void processEventAlertNotifications().catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error('Failed to process event alerts', err);
+    const context = buildLogContext(
+      'system',
+      'event-alerts',
+      process.env.LOG_FILE_PATH ?? null,
+      process.env.LOG_LEVEL ?? 'info'
+    );
+    if (context === null) {
+      processEventAlertNotifications().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Failed to process event alerts', err);
+      });
+      return;
+    }
+    runWithLogContext(context, () => {
+      void processEventAlertNotifications().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Failed to process event alerts', err);
+      });
     });
   };
+
   runner();
   eventAlertTimer = setInterval(runner, EVENT_ALERT_INTERVAL_MS);
 }

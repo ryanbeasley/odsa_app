@@ -12,7 +12,6 @@ import {
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Linking from 'expo-linking';
-import * as Clipboard from 'expo-clipboard'
 import { useLocalSearchParams } from 'expo-router';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
@@ -20,7 +19,14 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { SecondaryButton } from '../components/SecondaryButton';
 import { SelectField } from '../components/SelectField';
 import { colors } from '../styles/theme';
-import { Event, RecurrenceRule } from '../types';
+import {
+  DiscordRecurrenceFrequency,
+  DiscordRecurrenceRule,
+  DiscordRecurrenceRuleInput,
+  DiscordWeekday,
+  Event,
+  RecurrenceRule,
+} from '../types';
 import { styles } from './EventsScreen.styles';
 import { useAppData } from '../providers/AppDataProvider';
 import { useAuth } from '../hooks/useAuth';
@@ -115,6 +121,12 @@ export function EventsScreen() {
       return;
     }
     try {
+      const recurrenceRule = buildRecurrenceRule({
+        enabled: isSeries,
+        recurrence,
+        monthlyPattern,
+        startAt: formState.startAt,
+      });
       const payload = {
         name: formState.name.trim(),
         description: formState.description.trim(),
@@ -124,9 +136,8 @@ export function EventsScreen() {
         location: formState.location.trim(),
         locationDisplayName: formState.locationDisplayName.trim() || null,
         createDiscordEvent,
-        recurrence: isSeries ? recurrence : 'none',
+        recurrenceRule,
         seriesEndAt: isSeries && seriesEndAt ? seriesEndAt.trim() : null,
-        monthlyPattern: isSeries && recurrence === 'monthly' ? monthlyPattern : undefined,
       };
       eventsState.setError(null);
       if (editingId) {
@@ -779,7 +790,7 @@ export function EventsScreen() {
                     <Text style={styles.metaValue}>{formatTimestamp(event.endAt)}</Text>
                     {event.seriesUuid ? (
                       <Text style={styles.metaValue}>
-                        Series: {event.recurrence ?? 'recurring'} {event.seriesEndAt ? `(ends ${formatTimestamp(event.seriesEndAt)})` : ''}
+                        Series: {getRecurrenceLabel(event.recurrenceRule)} {event.seriesEndAt ? `(ends ${formatTimestamp(event.seriesEndAt)})` : ''}
                       </Text>
                     ) : null}
                     {event.upcomingOccurrences && event.upcomingOccurrences.length > 1 ? (
@@ -856,8 +867,9 @@ export function EventsScreen() {
                             setLocationInput(parsedAddress ?? event.location);
                             setIsSeries(Boolean(event.seriesUuid));
                             setSeriesEndAt(event.seriesEndAt ?? '');
-                            setRecurrence((event.recurrence as RecurrenceRule) ?? 'none');
-                            setMonthlyPattern('date');
+                            const nextSettings = deriveRecurrenceSettings(event.recurrenceRule);
+                            setRecurrence(nextSettings.recurrence);
+                            setMonthlyPattern(nextSettings.monthlyPattern);
                             setEditingId(event.id);
                             setShowForm(true);
                           }}
@@ -1171,6 +1183,89 @@ function getOrdinal(value: number) {
 function getOrdinalWord(index: number) {
   const words = ['first', 'second', 'third', 'fourth', 'fifth'];
   return words[index - 1] ?? `${index}th`;
+}
+
+function buildRecurrenceRule(params: {
+  enabled: boolean;
+  recurrence: RecurrenceRule;
+  monthlyPattern: 'date' | 'weekday';
+  startAt: string;
+}): DiscordRecurrenceRuleInput | null {
+  const { enabled, recurrence, monthlyPattern, startAt } = params;
+  if (!enabled || recurrence === 'none') {
+    return null;
+  }
+  const startDate = new Date(startAt);
+  if (Number.isNaN(startDate.getTime())) {
+    return null;
+  }
+  if (recurrence === 'daily') {
+    return { frequency: DiscordRecurrenceFrequency.DAILY, interval: 1 };
+  }
+  if (recurrence === 'weekly') {
+    return {
+      frequency: DiscordRecurrenceFrequency.WEEKLY,
+      interval: 1,
+      by_weekday: [mapDiscordWeekday(startDate)],
+    };
+  }
+  const rule: DiscordRecurrenceRuleInput = {
+    frequency: DiscordRecurrenceFrequency.MONTHLY,
+    interval: 1,
+  };
+  if (monthlyPattern === 'weekday') {
+    rule.by_n_weekday = [{ n: getWeekIndex(startDate), day: mapDiscordWeekday(startDate) }];
+  } else {
+    rule.by_month_day = [startDate.getUTCDate()];
+  }
+  return rule;
+}
+
+function deriveRecurrenceSettings(rule: DiscordRecurrenceRule | null): {
+  recurrence: RecurrenceRule;
+  monthlyPattern: 'date' | 'weekday';
+} {
+  if (!rule) {
+    return { recurrence: 'none', monthlyPattern: 'date' };
+  }
+  if (rule.frequency === DiscordRecurrenceFrequency.DAILY) {
+    return { recurrence: 'daily', monthlyPattern: 'date' };
+  }
+  if (rule.frequency === DiscordRecurrenceFrequency.WEEKLY) {
+    return { recurrence: 'weekly', monthlyPattern: 'date' };
+  }
+  if (rule.frequency === DiscordRecurrenceFrequency.MONTHLY) {
+    return { recurrence: 'monthly', monthlyPattern: rule.by_n_weekday?.length ? 'weekday' : 'date' };
+  }
+  return { recurrence: 'none', monthlyPattern: 'date' };
+}
+
+function getRecurrenceLabel(rule: DiscordRecurrenceRule | null) {
+  if (!rule) {
+    return 'one-time';
+  }
+  switch (rule.frequency) {
+    case DiscordRecurrenceFrequency.DAILY:
+      return 'daily';
+    case DiscordRecurrenceFrequency.WEEKLY:
+      return 'weekly';
+    case DiscordRecurrenceFrequency.MONTHLY:
+      return 'monthly';
+    default:
+      return 'recurring';
+  }
+}
+
+function mapDiscordWeekday(date: Date) {
+  const day = date.getUTCDay();
+  if (day === 0) {
+    return DiscordWeekday.SUNDAY;
+  }
+  return day - 1;
+}
+
+function getWeekIndex(date: Date) {
+  return Math.ceil(date.getUTCDate() / 7);
 }
 
 /**

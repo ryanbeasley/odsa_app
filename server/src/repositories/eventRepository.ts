@@ -6,6 +6,7 @@ import { EventAttendeeRow, EventRow } from '../types';
  * Returns all events ordered by start time and creation date.
  */
 export function listEvents(): (EventRow & { working_group_name?: string })[] {
+  console.logEnter();
   return db
     .prepare<[], EventRow & { working_group_name?: string }>(
       `SELECT e.*, wg.name as working_group_name
@@ -20,6 +21,7 @@ export function listEvents(): (EventRow & { working_group_name?: string })[] {
  * Returns events whose end time is in the future relative to nowIso.
  */
 export function listUpcomingEvents(nowIso: string): (EventRow & { working_group_name?: string })[] {
+  console.logEnter();
   return db
     .prepare<[string], EventRow & { working_group_name?: string }>(
       `SELECT e.*, wg.name as working_group_name
@@ -35,6 +37,7 @@ export function listUpcomingEvents(nowIso: string): (EventRow & { working_group_
  * Counts attendees for the provided event IDs.
  */
 export function countAttendeesByEventIds(eventIds: number[]): Record<number, number> {
+  console.logEnter();
   if (!eventIds.length) {
     return {};
   }
@@ -61,14 +64,27 @@ export function createEvent(
   location: string,
   locationDisplayName: string | null,
   seriesUuid: string | null,
-  recurrence: string | null,
+  recurrenceRule: string | null,
   seriesEndAt: string | null
 ): EventRow {
   const insert = db
-    .prepare<[string, string, number, string, string, string, string | null, string | null, string | null, string | null]>(
-      'INSERT INTO events (name, description, working_group_id, start_at, end_at, location, location_display_name, series_uuid, recurrence, series_end_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    .prepare<
+      [string, string, number, string, string, string, string | null, string | null, string | null, string | null]
+    >(
+      'INSERT INTO events (name, description, working_group_id, start_at, end_at, location, location_display_name, series_uuid, recurrence_rule, series_end_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(name, description, workingGroupId, startAt, endAt, location, locationDisplayName, seriesUuid, recurrence, seriesEndAt);
+    .run(
+      name,
+      description,
+      workingGroupId,
+      startAt,
+      endAt,
+      location,
+      locationDisplayName,
+      seriesUuid,
+      recurrenceRule,
+      seriesEndAt
+    );
 
   return db
     .prepare<[number], EventRow>('SELECT * FROM events WHERE id = ?')
@@ -84,12 +100,13 @@ export function upsertDiscordEvent(payload: {
   endAt: string;
   location: string;
   locationDisplayName: string | null;
+  recurrenceRule: string | null;
 }): EventRow {
   db.prepare<
-    [string, string, string, number, string, string, string, string | null]
+    [string, string, string, number, string, string, string, string | null, string | null]
   >(
-    `INSERT INTO events (discord_event_id, name, description, working_group_id, start_at, end_at, location, location_display_name)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO events (discord_event_id, name, description, working_group_id, start_at, end_at, location, location_display_name, recurrence_rule)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(discord_event_id) DO UPDATE SET
       name = excluded.name,
       description = excluded.description,
@@ -97,7 +114,8 @@ export function upsertDiscordEvent(payload: {
       start_at = excluded.start_at,
       end_at = excluded.end_at,
       location = excluded.location,
-      location_display_name = excluded.location_display_name`
+      location_display_name = excluded.location_display_name,
+      recurrence_rule = excluded.recurrence_rule`
   ).run(
     payload.discordEventId,
     payload.name,
@@ -106,7 +124,8 @@ export function upsertDiscordEvent(payload: {
     payload.startAt,
     payload.endAt,
     payload.location,
-    payload.locationDisplayName
+    payload.locationDisplayName,
+    payload.recurrenceRule
   );
 
   return db
@@ -126,10 +145,11 @@ export function createEventSeries(
     endAt: string;
     location: string;
     locationDisplayName: string | null;
-    recurrence: string | null;
+    recurrenceRule: string | null;
     seriesEndAt: string | null;
   }[]
 ): EventRow[] {
+  console.logEnter();
   const seriesUuid = randomUUID();
   return payloads.map((payload) =>
     createEvent(
@@ -141,7 +161,7 @@ export function createEventSeries(
       payload.location,
       payload.locationDisplayName,
       seriesUuid,
-      payload.recurrence,
+      payload.recurrenceRule,
       payload.seriesEndAt
     )
   );
@@ -151,6 +171,7 @@ export function createEventSeries(
  * Finds an event by ID including the working group name.
  */
 export function findEventById(id: number): (EventRow & { working_group_name?: string }) | undefined {
+  console.logEnter();
   return db
     .prepare<[number], EventRow & { working_group_name?: string }>(
       `SELECT e.*, wg.name as working_group_name
@@ -161,7 +182,11 @@ export function findEventById(id: number): (EventRow & { working_group_name?: st
     .get(id);
 }
 
+/**
+ * Finds an event by its Discord event ID.
+ */
 export function findEventByDiscordEventId(discordEventId: string): EventRow | undefined {
+  console.logEnter();
   return db
     .prepare<[string], EventRow>('SELECT * FROM events WHERE discord_event_id = ?')
     .get(discordEventId);
@@ -178,16 +203,20 @@ export function updateEvent(
   startAt: string,
   endAt: string,
   location: string,
-  locationDisplayName: string | null
+  locationDisplayName: string | null,
+  recurrenceRule: string | null
 ): (EventRow & { working_group_name?: string }) | undefined {
-  db.prepare<[string, string, number, string, string, string, string | null, number]>(
-    'UPDATE events SET name = ?, description = ?, working_group_id = ?, start_at = ?, end_at = ?, location = ?, location_display_name = ? WHERE id = ?'
-  ).run(name, description, workingGroupId, startAt, endAt, location, locationDisplayName, id);
+  console.logEnter();
+  db.prepare<[string, string, number, string, string, string, string | null, string | null, number]>(
+    'UPDATE events SET name = ?, description = ?, working_group_id = ?, start_at = ?, end_at = ?, location = ?, location_display_name = ?, recurrence_rule = ? WHERE id = ?'
+  ).run(name, description, workingGroupId, startAt, endAt, location, locationDisplayName, recurrenceRule, id);
 
   return findEventById(id);
 }
 
 export function updateEventDiscordId(id: number, discordEventId: string): void {
+  console.logEnter();
+  console.log(`Linking event ID ${id} to Discord event ID ${discordEventId}`);
   db.prepare<[string, number]>('UPDATE events SET discord_event_id = ? WHERE id = ?').run(discordEventId, id);
 }
 
@@ -195,6 +224,7 @@ export function updateEventDiscordId(id: number, discordEventId: string): void {
  * Deletes all events belonging to a given series UUID.
  */
 export function deleteEventsBySeries(seriesUuid: string): void {
+  console.logEnter();
   db.prepare<[string]>('DELETE FROM events WHERE series_uuid = ?').run(seriesUuid);
 }
 
@@ -202,6 +232,7 @@ export function deleteEventsBySeries(seriesUuid: string): void {
  * Deletes a single event by ID.
  */
 export function deleteEventById(id: number): void {
+  console.logEnter();
   db.prepare<[number]>('DELETE FROM events WHERE id = ?').run(id);
 }
 
@@ -209,6 +240,7 @@ export function deleteEventById(id: number): void {
  * Lists events that belong to a given series.
  */
 export function listEventsBySeries(seriesUuid: string): EventRow[] {
+  console.logEnter();
   return db
     .prepare<[string], EventRow>('SELECT * FROM events WHERE series_uuid = ? ORDER BY start_at ASC')
     .all(seriesUuid);
@@ -218,6 +250,7 @@ export function listEventsBySeries(seriesUuid: string): EventRow[] {
  * Deletes all events associated with a working group.
  */
 export function deleteEventsByWorkingGroup(workingGroupId: number): void {
+  console.logEnter();
   db.prepare<[number]>('DELETE FROM events WHERE working_group_id = ?').run(workingGroupId);
 }
 
@@ -225,6 +258,7 @@ export function deleteEventsByWorkingGroup(workingGroupId: number): void {
  * Registers a user as attending an event, ignoring duplicates.
  */
 export function addEventAttendee(userId: number, eventId: number): EventAttendeeRow {
+  console.logEnter();
   db.prepare<[number, number]>('INSERT OR IGNORE INTO event_attendees (user_id, event_id) VALUES (?, ?)').run(
     userId,
     eventId
@@ -238,6 +272,7 @@ export function addEventAttendee(userId: number, eventId: number): EventAttendee
  * Removes a user from an event's attendee list.
  */
 export function deleteEventAttendee(userId: number, eventId: number): void {
+  console.logEnter();
   db.prepare<[number, number]>('DELETE FROM event_attendees WHERE user_id = ? AND event_id = ?').run(userId, eventId);
 }
 
@@ -245,6 +280,7 @@ export function deleteEventAttendee(userId: number, eventId: number): void {
  * Returns all event IDs the user is attending.
  */
 export function listUserEventIds(userId: number): number[] {
+  console.logEnter();
   return db
     .prepare<[number], { event_id: number }>('SELECT event_id FROM event_attendees WHERE user_id = ?')
     .all(userId)

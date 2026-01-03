@@ -24,6 +24,14 @@ npm install
 npm run dev
 ```
 
+### Tests
+
+```bash
+npm run test
+```
+
+Integration tests use a temporary SQLite database and seed an admin user automatically.
+
 This loads environment variables from a `.env` file if present. Available vars:
 
 | Variable | Default | Description |
@@ -39,6 +47,7 @@ This loads environment variables from a `.env` file if present. Available vars:
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | _(empty)_ | Web Push VAPID keys used for browser notifications |
 | `DISCORD_BOT_TOKEN` | _(empty)_ | Discord bot token used to sync scheduled events |
 | `DISCORD_GUILD_ID` | _(empty)_ | Discord server (guild) ID to sync from |
+| `LOG_FILE_PATH` | `/var/logs/odsa_app_logs.txt` | File path to mirror server logs |
 
 The server exposes:
 
@@ -151,7 +160,7 @@ npx eas submit -p android --latest
 8. Restart the server:
    - If using PM2:
      ```bash
-     pm2 restart odsa-app
+     pm2 restart odsa-server
      ```
    - Or plain Node:
      ```bash

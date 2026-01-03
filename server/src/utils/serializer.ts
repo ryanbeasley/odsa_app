@@ -75,10 +75,21 @@ export function serializeEvent(row: EventRow & { working_group_name?: string }) 
     locationDisplayName: row.location_display_name ?? null,
     discordEventId: row.discord_event_id ?? null,
     seriesUuid: row.series_uuid ?? null,
-    recurrence: row.recurrence ?? null,
+    recurrenceRule: parseRecurrenceRule(row.recurrence_rule),
     seriesEndAt: row.series_end_at ?? null,
     createdAt: new Date(row.created_at).toISOString(),
   };
+}
+
+function parseRecurrenceRule(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SERVER_URL } from '../config';
-import { Event, EventCreateResponse, EventsResponse, RecurrenceRule } from '../types';
+import { DiscordRecurrenceRuleInput, Event, EventCreateResponse, EventsResponse } from '../types';
 
 type EventPayload = {
   name: string;
@@ -11,9 +11,8 @@ type EventPayload = {
   location: string;
   locationDisplayName?: string | null;
   createDiscordEvent?: boolean;
-  recurrence?: RecurrenceRule;
   seriesEndAt?: string | null;
-  monthlyPattern?: 'date' | 'weekday';
+  recurrenceRule?: DiscordRecurrenceRuleInput | null;
 };
 
 /**

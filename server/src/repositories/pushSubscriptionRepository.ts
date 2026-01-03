@@ -5,6 +5,7 @@ import { EventAlertCandidateRow, PushSubscriptionRow } from '../types';
  * Looks up a push subscription by user ID.
  */
 export function findPushSubscriptionByUserId(userId: number): PushSubscriptionRow | undefined {
+  console.logEnter();
   return db.prepare<[number], PushSubscriptionRow>('SELECT * FROM push_subscriptions WHERE user_id = ?').get(userId);
 }
 
@@ -16,6 +17,7 @@ export function upsertPushSubscription(
   token: string,
   options?: { announcementAlertsEnabled?: boolean; eventAlertsEnabled?: boolean }
 ): PushSubscriptionRow {
+  console.logEnter();
   const existing = findPushSubscriptionByUserId(userId);
   const announcementEnabled =
     typeof options?.announcementAlertsEnabled === 'boolean'
@@ -44,6 +46,7 @@ export function upsertPushSubscription(
  * Removes a push subscription for the given user.
  */
 export function deletePushSubscription(userId: number): void {
+  console.logEnter();
   db.prepare<[number]>('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
 }
 
@@ -51,6 +54,7 @@ export function deletePushSubscription(userId: number): void {
  * Returns all push subscriptions.
  */
 export function listPushSubscriptions(): PushSubscriptionRow[] {
+  console.logEnter();
   return db.prepare<[], PushSubscriptionRow>('SELECT * FROM push_subscriptions').all();
 }
 
@@ -58,6 +62,7 @@ export function listPushSubscriptions(): PushSubscriptionRow[] {
  * Lists attendees whose events start within the specified window.
  */
 export function listEventAlertCandidates(hoursAhead = 24): EventAlertCandidateRow[] {
+  console.logEnter();
   const clampedHours = Math.max(1, hoursAhead);
   const window = `+${clampedHours} hours`;
   return db

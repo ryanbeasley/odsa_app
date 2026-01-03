@@ -9,7 +9,6 @@ import {
   deleteEventById,
   deleteEventsBySeries,
   deleteEventsByWorkingGroup,
-  listEvents,
   listEventsBySeries,
   listUpcomingEvents,
   listUserEventIds,
@@ -27,6 +26,24 @@ import {
 import { serializeEvent, serializeWorkingGroup } from '../utils/serializer';
 import { MonthlyPattern, RecurrenceRule } from '../types';
 import { createDiscordEventFromApp, updateDiscordEventFromApp } from '../services/discordService';
+import { DiscordRecurrenceFrequency, DiscordWeekday } from '../services/discordTypes';
+
+type DiscordRecurrenceRule = {
+  start: string;
+  frequency: number;
+  interval?: number | null;
+  by_weekday?: number[] | null;
+  by_n_weekday?: Array<{ n: number; day: number }> | null;
+  by_month_day?: number[] | null;
+};
+
+type DiscordRecurrenceRuleInput = {
+  frequency?: number;
+  interval?: number | null;
+  by_weekday?: number[] | null;
+  by_n_weekday?: Array<{ n: number; day: number }> | null;
+  by_month_day?: number[] | null;
+};
 
 const router = Router();
 
@@ -82,26 +99,6 @@ router.patch('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
 });
 
 /**
- * Deletes a working group and its events (admin only).
- */
-/**
- * Deletes a working group and cascading events (duplicate safeguard).
- */
-router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id) || id <= 0) {
-    return res.status(400).json({ error: 'id must be a positive number' });
-  }
-  const existing = findWorkingGroupById(id);
-  if (!existing) {
-    return res.status(404).json({ error: 'Working group not found' });
-  }
-  deleteEventsByWorkingGroup(id);
-  deleteWorkingGroup(id);
-  return res.status(204).send();
-});
-
-/**
  * Returns upcoming events grouped by series along with attendance info.
  */
 router.get('/events', authenticate, (req, res) => {
@@ -150,19 +147,23 @@ router.get('/events', authenticate, (req, res) => {
   res.json({ events: response });
 });
 
-
-
+/**
+ * deletes a working group by its id
+ */
 router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
+    console.log('Invalid working group ID for deletion:', id);
     return res.status(400).json({ error: 'id must be a positive number' });
   }
   const existing = findWorkingGroupById(id);
   if (!existing) {
+    console.log('Working group not found for ID:', id);
     return res.status(404).json({ error: 'Working group not found' });
   }
   deleteEventsByWorkingGroup(id);
   deleteWorkingGroup(id);
+  console.log('Deleted working group with ID:', id);
   return res.status(204).send();
 });
 
@@ -172,9 +173,10 @@ router.delete('/working-groups/:id', authenticate, requireAdmin, (req, res) => {
 router.post('/events', authenticate, requireAdmin, async (req, res) => {
   const error = validateEvent(req.body);
   if (error) {
+    console.log('Event validation error:', error);
     return res.status(400).json({ error });
   }
-  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrence, seriesEndAt, monthlyPattern } = req.body as {
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrenceRule, seriesEndAt } = req.body as {
     name: string;
     description: string;
     workingGroupId: number;
@@ -183,23 +185,27 @@ router.post('/events', authenticate, requireAdmin, async (req, res) => {
     location: string;
     locationDisplayName?: string | null;
     createDiscordEvent?: boolean;
-    recurrence?: RecurrenceRule;
+    recurrenceRule?: DiscordRecurrenceRuleInput | null;
     seriesEndAt?: string | null;
-    monthlyPattern?: MonthlyPattern;
   };
 
   const numericWorkingGroupId = Number(workingGroupId);
   const workingGroup = findWorkingGroupById(numericWorkingGroupId);
   if (!workingGroup) {
+    console.log('Working group not found for ID:', numericWorkingGroupId);
     return res.status(400).json({ error: 'workingGroupId must reference an existing working group' });
   }
 
   const baseStart = new Date(startAt);
   const baseEnd = new Date(endAt);
-  const rule: RecurrenceRule = recurrence ?? 'none';
-  const monthlyPatternValue: MonthlyPattern = monthlyPattern === 'weekday' ? 'weekday' : 'date';
-  const seriesUuid = rule === 'none' ? null : crypto.randomUUID();
+  const normalized = normalizeRecurrenceRuleInput(recurrenceRule, baseStart);
+  if ('error' in normalized) {
+    return res.status(400).json({ error: normalized.error });
+  }
+  const { recurrence, monthlyPattern, rule: normalizedRule, dailyWeekdays } = normalized;
+  const seriesUuid = recurrence === 'none' ? null : crypto.randomUUID();
   const seriesEndDate = seriesEndAt ? new Date(seriesEndAt) : null;
+  const recurrenceRuleJson = normalizedRule ? JSON.stringify(normalizedRule) : null;
 
   const expanded = expandRecurringEvents({
       baseEvent: {
@@ -211,10 +217,12 @@ router.post('/events', authenticate, requireAdmin, async (req, res) => {
         location: location.trim(),
         locationDisplayName: normalizeDisplayName(locationDisplayName),
       },
-      recurrence: rule,
+      recurrence,
       seriesEnd: seriesEndDate,
       seriesUuid,
-      monthlyPattern: monthlyPatternValue,
+      monthlyPattern,
+      dailyWeekdays,
+      recurrenceRuleJson,
     });
 
   const createdEvents = expanded.map((payload) =>
@@ -227,16 +235,18 @@ router.post('/events', authenticate, requireAdmin, async (req, res) => {
       payload.location,
       payload.locationDisplayName,
       payload.seriesUuid,
-      payload.recurrence === 'none' ? null : payload.recurrence,
+      payload.recurrenceRuleJson ?? null,
       payload.seriesEndAt
     )
   );
+  console.log('Created events with IDs:', createdEvents.map((e) => e.id));
 
   if (createDiscordEvent) {
     const target = createdEvents[0];
     const discordEventId = await createDiscordEventFromApp(target);
     updateEventDiscordId(target.id, discordEventId);
     target.discord_event_id = discordEventId;
+    console.log('Created Discord event with ID:', discordEventId);
   }
 
   const first = createdEvents[0];
@@ -250,37 +260,15 @@ router.patch('/events/:id', authenticate, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: 'id must be a positive number' });
-
-
-/**
- * Deletes a single event or an entire series depending on the payload.
- */
-router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id) || id <= 0) {
-    return res.status(400).json({ error: 'id must be a positive number' });
-  }
-  const existing = findEventById(id);
-  if (!existing) {
-    return res.status(404).json({ error: 'Event not found' });
-  }
-  const { series } = req.body ?? {};
-  if (series && existing.series_uuid) {
-    deleteEventsBySeries(existing.series_uuid);
-  } else {
-    deleteEventById(id);
-  }
-  return res.status(204).send();
-});
-
   }
 
   const error = validateEvent(req.body);
   if (error) {
+    console.log('Event validation error:', error);
     return res.status(400).json({ error });
   }
 
-  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrence, seriesEndAt, monthlyPattern } = req.body as {
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrenceRule, seriesEndAt } = req.body as {
     name: string;
     description: string;
     workingGroupId: number;
@@ -289,35 +277,43 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     location: string;
     locationDisplayName?: string | null;
     createDiscordEvent?: boolean;
-    recurrence?: RecurrenceRule;
+    recurrenceRule?: DiscordRecurrenceRuleInput | null;
     seriesEndAt?: string | null;
-    monthlyPattern?: MonthlyPattern;
   };
 
   const numericWorkingGroupId = Number(workingGroupId);
   const workingGroup = findWorkingGroupById(numericWorkingGroupId);
   if (!workingGroup) {
+    console.log('Working group not found for ID:', numericWorkingGroupId);
     return res.status(400).json({ error: 'workingGroupId must reference an existing working group' });
   }
 
   const existing = findEventById(id);
   if (!existing) {
+    console.log('Event not found for ID:', id);
     return res.status(404).json({ error: 'Event not found' });
   }
 
-  const recurrenceRule: RecurrenceRule = recurrence ?? 'none';
-  const monthlyPatternValue: MonthlyPattern = monthlyPattern === 'weekday' ? 'weekday' : 'date';
+  const baseStart = new Date(startAt);
+  const normalized = normalizeRecurrenceRuleInput(recurrenceRule, baseStart);
+  if ('error' in normalized) {
+    console.log('Recurrence rule normalization error:', normalized.error);
+    return res.status(400).json({ error: normalized.error });
+  }
+  const { recurrence, monthlyPattern, rule: normalizedRule, dailyWeekdays } = normalized;
   const seriesEndDate = seriesEndAt ? new Date(seriesEndAt) : null;
+  const recurrenceRuleJson = normalizedRule ? JSON.stringify(normalizedRule) : null;
 
-  if (recurrenceRule !== 'none') {
+  if (recurrence !== 'none') {
     const seriesUuid = existing.series_uuid ?? crypto.randomUUID();
     if (existing.series_uuid) {
+      console.log('Deleting existing series:', existing.series_uuid);
       deleteEventsBySeries(existing.series_uuid);
     } else {
+      console.log('Deleting single event ID for regeneration:', id);
       deleteEventById(id);
     }
 
-    const baseStart = new Date(startAt);
     const baseEnd = new Date(endAt);
     const expanded = expandRecurringEvents({
       baseEvent: {
@@ -329,10 +325,12 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
         location: location.trim(),
         locationDisplayName: normalizeDisplayName(locationDisplayName),
       },
-      recurrence: recurrenceRule,
+      recurrence,
       seriesEnd: seriesEndDate,
       seriesUuid,
-      monthlyPattern: monthlyPatternValue,
+      monthlyPattern,
+      dailyWeekdays,
+      recurrenceRuleJson,
     });
 
     const createdEvents = expanded.map((payload) =>
@@ -345,7 +343,7 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
         payload.location,
         payload.locationDisplayName,
         payload.seriesUuid,
-        payload.recurrence === 'none' ? null : payload.recurrence,
+        payload.recurrenceRuleJson ?? null,
         payload.seriesEndAt
       )
     );
@@ -370,7 +368,8 @@ router.delete('/events/:id', authenticate, requireAdmin, (req, res) => {
     new Date(startAt).toISOString(),
     new Date(endAt).toISOString(),
     location.trim(),
-    normalizeDisplayName(locationDisplayName)
+    normalizeDisplayName(locationDisplayName),
+    recurrenceRuleJson
   );
   if (createDiscordEvent && single) {
     if (single.discord_event_id) {
@@ -463,7 +462,8 @@ router.delete('/events/:id/attendees', authenticate, (req: AuthedRequest, res) =
  * Validates the incoming event payload and returns an error message, if any.
  */
 function validateEvent(body: unknown) {
-  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrence, monthlyPattern } =
+  console.logEnter();
+  const { name, description, workingGroupId, startAt, endAt, location, locationDisplayName, createDiscordEvent, recurrenceRule } =
     (body ?? {}) as Record<string, unknown>;
   if (typeof name !== 'string' || !name.trim()) {
     return 'name is required';
@@ -492,8 +492,8 @@ function validateEvent(body: unknown) {
   if (createDiscordEvent !== undefined && typeof createDiscordEvent !== 'boolean') {
     return 'createDiscordEvent must be a boolean';
   }
-  if (recurrence === 'monthly' && monthlyPattern && monthlyPattern !== 'date' && monthlyPattern !== 'weekday') {
-    return 'monthlyPattern must be "date" or "weekday"';
+  if (recurrenceRule !== undefined && recurrenceRule !== null && typeof recurrenceRule !== 'object') {
+    return 'recurrenceRule must be an object';
   }
   return null;
 }
@@ -523,8 +523,11 @@ function expandRecurringEvents(params: {
   seriesEnd: Date | null;
   seriesUuid: string | null;
   monthlyPattern?: MonthlyPattern;
+  dailyWeekdays?: number[] | null;
+  recurrenceRuleJson?: string | null;
 }) {
-  const { baseEvent, recurrence, seriesEnd, seriesUuid, monthlyPattern = 'date' } = params;
+  console.logEnter();
+  const { baseEvent, recurrence, seriesEnd, seriesUuid, monthlyPattern = 'date', dailyWeekdays, recurrenceRuleJson } = params;
   const events = [];
   const startIso = baseEvent.startAt.toISOString();
   const endIso = baseEvent.endAt.toISOString();
@@ -537,7 +540,7 @@ function expandRecurringEvents(params: {
     location: baseEvent.location,
     locationDisplayName: baseEvent.locationDisplayName,
     seriesUuid,
-    recurrence,
+    recurrenceRuleJson: recurrenceRuleJson ?? null,
     seriesEndAt: seriesEnd ? seriesEnd.toISOString() : null,
   });
 
@@ -545,6 +548,7 @@ function expandRecurringEvents(params: {
     return events;
   }
 
+  console.log('Expanding recurring events with rule:', recurrence, monthlyPattern, seriesEnd.toISOString());
   const durationMs = baseEvent.endAt.getTime() - baseEvent.startAt.getTime();
   const weekIndex = Math.ceil(baseEvent.startAt.getDate() / 7);
   const weekday = baseEvent.startAt.getDay();
@@ -558,8 +562,15 @@ function expandRecurringEvents(params: {
     if (nextStart.getTime() > seriesEnd.getTime()) {
       break;
     }
+    if (recurrence === 'daily' && dailyWeekdays?.length) {
+      const weekday = mapDiscordWeekday(nextStart);
+      if (!dailyWeekdays.includes(weekday)) {
+        cursorStart = nextStart;
+        continue;
+      }
+    }
     const nextEnd = new Date(nextStart.getTime() + durationMs);
-    events.push({
+    const thisEvent = {
       name: baseEvent.name,
       description: baseEvent.description,
       workingGroupId: baseEvent.workingGroupId,
@@ -568,13 +579,67 @@ function expandRecurringEvents(params: {
       location: baseEvent.location,
       locationDisplayName: baseEvent.locationDisplayName,
       seriesUuid,
-      recurrence,
+      recurrenceRuleJson: recurrenceRuleJson ?? null,
       seriesEndAt: seriesEnd ? seriesEnd.toISOString() : null,
-    });
+    };
+    events.push(thisEvent);
     cursorStart = nextStart;
+    console.debug('Created new event series occurence:', thisEvent);
+  }
+  console.log(`Expanded to total of ${events.length} events in series.`);
+  return events;
+}
+
+/**
+ * Normalizes and validates the recurrence rule input from the client.
+ */
+function normalizeRecurrenceRuleInput(recurrenceRule: DiscordRecurrenceRuleInput | null | undefined, start: Date) {
+  console.logEnter();
+  if (!recurrenceRule) {
+    return { recurrence: 'none' as RecurrenceRule, monthlyPattern: 'date' as MonthlyPattern, rule: null, dailyWeekdays: null };
+  }
+  if (typeof recurrenceRule.frequency !== 'number') {
+    return { error: 'recurrenceRule.frequency must be a number' } as const;
+  }
+  if (![DiscordRecurrenceFrequency.MONTHLY, DiscordRecurrenceFrequency.WEEKLY, DiscordRecurrenceFrequency.DAILY].includes(recurrenceRule.frequency)) {
+    return { error: 'recurrenceRule.frequency must be DAILY (3), WEEKLY (2), or MONTHLY (1)' } as const;
+  }
+  const rule: DiscordRecurrenceRule = {
+    start: start.toISOString(),
+    frequency: recurrenceRule.frequency,
+    interval: recurrenceRule.interval ?? 1,
+  };
+
+  if (recurrenceRule.frequency === DiscordRecurrenceFrequency.DAILY) {
+    const weekdays = recurrenceRule.by_weekday?.length ? recurrenceRule.by_weekday.slice() : null;
+    if (weekdays) {
+      rule.by_weekday = weekdays;
+    }
+    return { recurrence: 'daily' as RecurrenceRule, monthlyPattern: 'date' as MonthlyPattern, rule, dailyWeekdays: weekdays };
   }
 
-  return events;
+  if (recurrenceRule.frequency === DiscordRecurrenceFrequency.WEEKLY) {
+    const weekday = recurrenceRule.by_weekday?.[0] ?? mapDiscordWeekday(start);
+    rule.by_weekday = [weekday];
+    return { recurrence: 'weekly' as RecurrenceRule, monthlyPattern: 'date' as MonthlyPattern, rule, dailyWeekdays: null };
+  }
+
+  const nWeekday = recurrenceRule.by_n_weekday?.[0] ?? null;
+  if (nWeekday) {
+    rule.by_n_weekday = [nWeekday];
+    return { recurrence: 'monthly' as RecurrenceRule, monthlyPattern: 'weekday' as MonthlyPattern, rule, dailyWeekdays: null };
+  }
+  const monthDay = recurrenceRule.by_month_day?.[0] ?? start.getUTCDate();
+  rule.by_month_day = [monthDay];
+  return { recurrence: 'monthly' as RecurrenceRule, monthlyPattern: 'date' as MonthlyPattern, rule, dailyWeekdays: null };
+}
+
+function mapDiscordWeekday(date: Date) {
+  const day = date.getUTCDay();
+  if (day === 0) {
+    return DiscordWeekday.SUNDAY;
+  }
+  return day - 1;
 }
 
 /**

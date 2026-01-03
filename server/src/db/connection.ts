@@ -10,6 +10,41 @@ const dbPath = process.env.DB_PATH ? path.resolve(process.cwd(), process.env.DB_
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 export const db = new Database(dbPath);
+const originalPrepare = db.prepare.bind(db);
+const minifySql = (sql: string) => sql.replace(/\s+/g, ' ').trim();
+const formatParams = (params: unknown[]) => {
+  if (!params.length) {
+    return '[]';
+  }
+  try {
+    return JSON.stringify(params);
+  } catch {
+    return `[${params.map((param) => String(param)).join(', ')}]`;
+  }
+};
+
+const wrapStatement = <T extends ReturnType<typeof db.prepare>>(stmt: T, sql: string) =>
+  new Proxy(stmt, {
+    get(target, prop, receiver) {
+      if (prop === 'run' || prop === 'get' || prop === 'all' || prop === 'iterate') {
+        const original = Reflect.get(target, prop, receiver) as (...params: unknown[]) => unknown;
+        return (...params: unknown[]) => {
+          console.debug('SQL', minifySql(sql), formatParams(params));
+          return original.apply(target, params);
+        };
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as T;
+
+db.prepare = ((...args) => {
+  const [sql] = args;
+  const statement = originalPrepare(...args);
+  if (typeof sql === 'string') {
+    return wrapStatement(statement, sql);
+  }
+  return statement;
+}) as typeof db.prepare;
 
 const supportLinkSeeds = [
   {
@@ -104,7 +139,7 @@ function ensureTables() {
       location_display_name TEXT,
       discord_event_id TEXT,
       series_uuid TEXT,
-      recurrence TEXT,
+      recurrence_rule TEXT,
       series_end_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (working_group_id) REFERENCES working_groups(id) ON DELETE CASCADE
@@ -160,7 +195,7 @@ function runMigrations() {
   ensureColumn('location_display_name', 'location_display_name TEXT');
   ensureColumn('discord_event_id', 'discord_event_id TEXT');
   ensureColumn('series_uuid', 'series_uuid TEXT');
-  ensureColumn('recurrence', 'recurrence TEXT');
+  ensureColumn('recurrence_rule', 'recurrence_rule TEXT');
   ensureColumn('series_end_at', 'series_end_at TEXT');
   db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS events_discord_event_id_idx ON events(discord_event_id)').run();
 

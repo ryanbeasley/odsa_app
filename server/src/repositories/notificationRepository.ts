@@ -9,6 +9,7 @@ export function hasEventNotificationLog(
   userId: number,
   notificationType: EventNotificationType
 ): boolean {
+  console.log();
   const existing = db
     .prepare<[number, number, string]>('SELECT 1 FROM event_notification_logs WHERE event_id = ? AND user_id = ? AND notification_type = ?')
     .get(eventId, userId, notificationType);
@@ -23,6 +24,7 @@ export function recordEventNotificationLog(
   userId: number,
   notificationType: EventNotificationType
 ): void {
+  console.log();
   db.prepare<[number, number, string]>(
     'INSERT OR IGNORE INTO event_notification_logs (event_id, user_id, notification_type) VALUES (?, ?, ?)'
   ).run(eventId, userId, notificationType);

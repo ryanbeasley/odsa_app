@@ -5,6 +5,7 @@ import { AnnouncementRow } from '../types';
  * Returns announcements ordered by newest first with cursor pagination.
  */
 export function listAnnouncements(limit: number, cursor?: number): AnnouncementRow[] {
+  console.logEnter();
   if (cursor) {
     return db
       .prepare<[number, number], AnnouncementRow>(
@@ -22,6 +23,7 @@ export function listAnnouncements(limit: number, cursor?: number): AnnouncementR
  * Inserts a new announcement and returns the persisted row.
  */
 export function createAnnouncement(body: string): AnnouncementRow {
+  console.logEnter();
   const insert = db.prepare<[string]>('INSERT INTO announcements (body) VALUES (?)').run(body);
   return db
     .prepare<[number], AnnouncementRow>('SELECT * FROM announcements WHERE id = ?')

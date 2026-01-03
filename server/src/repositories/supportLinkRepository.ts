@@ -5,6 +5,7 @@ import { SupportLinkRow } from '../types';
  * Returns all support links ordered by their position.
  */
 export function listSupportLinks(): SupportLinkRow[] {
+  console.logEnter();
   return db
     .prepare<[], SupportLinkRow>('SELECT * FROM support_links ORDER BY position ASC, created_at ASC, id ASC')
     .all();
@@ -14,6 +15,7 @@ export function listSupportLinks(): SupportLinkRow[] {
  * Inserts a new support link at the end of the current list.
  */
 export function createSupportLink(title: string, description: string, link: string): SupportLinkRow {
+  console.logEnter();
   const maxPositionRow = db
     .prepare<[], { maxPos: number | null }>('SELECT MAX(position) as maxPos FROM support_links')
     .get();
@@ -39,6 +41,7 @@ export function updateSupportLink(
   description: string,
   link: string
 ): SupportLinkRow | undefined {
+  console.logEnter();
   db.prepare<[string, string, string, number]>(
     'UPDATE support_links SET title = ?, description = ?, link = ? WHERE id = ?'
   ).run(title, description, link, id);
@@ -50,6 +53,7 @@ export function updateSupportLink(
  * Deletes a support link by ID.
  */
 export function deleteSupportLink(id: number): void {
+  console.logEnter();
   db.prepare<[number]>('DELETE FROM support_links WHERE id = ?').run(id);
 }
 
@@ -57,6 +61,7 @@ export function deleteSupportLink(id: number): void {
  * Applies a new ordering to support links and returns the updated list.
  */
 export function reorderSupportLinks(ids: number[]): SupportLinkRow[] {
+  console.logEnter();
   const applyOrder = db.transaction((orderedIds: number[]) => {
     orderedIds.forEach((linkId, index) => {
       db.prepare<[number, number]>('UPDATE support_links SET position = ? WHERE id = ?').run(index, linkId);

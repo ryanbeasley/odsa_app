@@ -5,6 +5,7 @@ import { Role, UserRow } from '../types';
  * Finds a user row by email address.
  */
 export function findUserByEmail(email: string): UserRow | undefined {
+  console.logEnter();
   return db.prepare<[string], UserRow>('SELECT * FROM users WHERE email = ?').get(email);
 }
 
@@ -12,6 +13,7 @@ export function findUserByEmail(email: string): UserRow | undefined {
  * Finds a user row by primary key.
  */
 export function findUserById(id: number): UserRow | undefined {
+  console.logEnter();
   return db.prepare<[number], UserRow>('SELECT * FROM users WHERE id = ?').get(id);
 }
 
@@ -19,6 +21,7 @@ export function findUserById(id: number): UserRow | undefined {
  * Inserts a new user with the given credentials.
  */
 export function createUser(email: string, passwordHash: string, role: Role): UserRow {
+  console.logEnter();
   const info = db
     .prepare<[string, string, Role]>('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
     .run(email, passwordHash, role);
@@ -30,6 +33,7 @@ export function createUser(email: string, passwordHash: string, role: Role): Use
  * Lists users optionally filtered by a search term.
  */
 export function listUsers(search?: string): UserRow[] {
+  console.logEnter();
   if (search?.trim()) {
     const term = `%${search.trim().toLowerCase()}%`;
     return db
@@ -53,6 +57,7 @@ export function updateUserProfile(
   id: number,
   updates: { email?: string; first_name?: string | null; last_name?: string | null; phone?: string | null }
 ): UserRow | undefined {
+  console.logEnter();
   const fields: string[] = [];
   const values: (string | number | null)[] = [];
   if (updates.email !== undefined) {
@@ -83,6 +88,7 @@ export function updateUserProfile(
  * Updates a user's role.
  */
 export function updateUserRole(id: number, role: Role): UserRow | undefined {
+  console.logEnter();
   db.prepare<[Role, number]>('UPDATE users SET role = ? WHERE id = ?').run(role, id);
   return findUserById(id);
 }
