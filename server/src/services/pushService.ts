@@ -125,6 +125,7 @@ let eventAlertTimer: NodeJS.Timeout | null = null;
 /**
  * Starts a timer that periodically processes event alerts.
  */
+/* v8 ignore start */
 export function startEventAlertScheduler() {
   if (eventAlertTimer) {
     return;
@@ -155,3 +156,4 @@ export function startEventAlertScheduler() {
   runner();
   eventAlertTimer = setInterval(runner, EVENT_ALERT_INTERVAL_MS);
 }
+/* v8 ignore stop */

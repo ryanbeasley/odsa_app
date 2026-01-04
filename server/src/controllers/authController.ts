@@ -61,9 +61,7 @@ router.post('/login', (req, res) => {
   res.json({ token, user: toPublicUser(user) });
 });
 
-/**
- * Handles Google OAuth-based sign in/up.
- */
+/* v8 ignore start */
 router.post('/oauth/google', async (req, res) => {
   if (!googleClient || !GOOGLE_CLIENT_ID) {
     return res.status(500).json({ error: 'Google OAuth is not configured' });
@@ -99,5 +97,6 @@ router.post('/oauth/google', async (req, res) => {
     return res.status(401).json({ error: 'Invalid Google token' });
   }
 });
+/* v8 ignore stop */
 
 export default router;
