@@ -70,6 +70,8 @@ jobs:
             -Dsonar.projectKey=ryanbeasley_odsa_app
             -Dsonar.organization=ryanbeasley
             -Dsonar.javascript.lcov.reportPaths=server/coverage/lcov.info
+            -Dsonar.exclusions=server/coverage/**
+            -Dsonar.coverage.exclusions=mobile/**
             # Comma-separated paths to directories containing main source files.
             #-Dsonar.sources= # optional, default is project base directory
             # Comma-separated paths to directories containing test source files.

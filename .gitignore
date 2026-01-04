@@ -12,5 +12,6 @@ server/data/app.db
 mobile/devices.json
 mobile/screen_caps/
 server/dist/
+server/coverage/
 server/server/data/app.db
 mobile/tokyo-kingdom-327018-bd297ba3d9c3.json
