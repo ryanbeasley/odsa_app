@@ -11,7 +11,7 @@ import { styles } from './AuthFlow.styles';
 export function AuthFlow() {
   const auth = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -19,8 +19,8 @@ export function AuthFlow() {
    * Validates local auth fields then triggers the authenticate call.
    */
   const handleSubmit = async () => {
-    if (!email.trim() || password.trim().length < 6) {
-      auth.setAuthError('Enter a valid email and password (6+ chars).');
+    if (!username.trim() || password.trim().length < 6) {
+      auth.setAuthError('Enter a valid username and password (6+ chars).');
       return;
     }
     if (mode === 'signup' && password !== confirmPassword) {
@@ -28,8 +28,8 @@ export function AuthFlow() {
       return;
     }
     try {
-      await auth.authenticate(mode, { email, password });
-      setEmail('');
+      await auth.authenticate(mode, { username, password });
+      setUsername('');
       setPassword('');
       setConfirmPassword('');
     } catch {
@@ -43,15 +43,15 @@ export function AuthFlow() {
         <Hero eyebrow="Orlando DSA" title="Organize for a better Orlando" />
         <AuthScreen
           mode={mode}
-          email={email}
+          username={username}
           password={password}
           confirmPassword={confirmPassword}
           authError={auth.authError}
           authLoading={auth.authLoading}
           googleLoading={auth.googleLoading}
-          onChangeEmail={(value) => {
+          onChangeUsername={(value) => {
             auth.setAuthError(null);
-            setEmail(value);
+            setUsername(value);
           }}
           onChangePassword={(value) => {
             auth.setAuthError(null);

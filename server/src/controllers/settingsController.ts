@@ -101,12 +101,13 @@ export const updateUserRoleHandler: RequestHandler = (req: AuthedRequest, res) =
 /**
  * Syncs scheduled events from Discord into the local database (admin only).
  */
-export const syncDiscordHandler: RequestHandler = async (_req, res) => {
-  try {
-    const result = await syncDiscordEvents();
-    return res.json({ synced: result.count, skipped: result.skipped });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to sync Discord events';
-    return res.status(500).json({ error: message });
-  }
+export const syncDiscordHandler: RequestHandler = (_req, res) => {
+  void syncDiscordEvents()
+    .then((result) => {
+      res.json({ synced: result.count, skipped: result.skipped });
+    })
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : 'Failed to sync Discord events';
+      res.status(500).json({ error: message });
+    });
 };

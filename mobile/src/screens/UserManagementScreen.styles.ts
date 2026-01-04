@@ -61,7 +61,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     gap: spacing.sm,
   },
-  emailColumn: {
+  usernameColumn: {
     flex: 1,
   },
   adminColumn: {
@@ -73,7 +73,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs / 2,
   },
-  emailText: {
+  usernameText: {
     fontSize: 14,
     color: colors.text,
     fontWeight: '600',

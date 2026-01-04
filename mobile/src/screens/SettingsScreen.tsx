@@ -113,7 +113,7 @@ export function SettingsScreen() {
               </View>
               <View style={styles.summaryCopy}>
                 <Text style={styles.summaryLabel}>Signed in as</Text>
-                <Text style={styles.summaryValue}>{accountUser.email}</Text>
+                <Text style={styles.summaryValue}>{accountUser.username}</Text>
                 {accountUser.firstName || accountUser.lastName ? (
                   <Text style={styles.summaryDetail}>
                     {[accountUser.firstName, accountUser.lastName].filter(Boolean).join(' ')}

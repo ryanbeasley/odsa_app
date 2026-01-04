@@ -111,10 +111,10 @@ export function UserManagementScreen() {
           </TouchableOpacity>
           <Text style={styles.heading}>Manage users</Text>
           <Text style={styles.description}>
-            Promote trusted members to admin or keep track of who has elevated access. Use the search field to filter by email or name.
+            Promote trusted members to admin or keep track of who has elevated access. Use the search field to filter by username or name.
           </Text>
           <TextField
-            label="Filter by email or name"
+            label="Filter by username or name"
             value={query}
             onChangeText={setQuery}
             autoCapitalize="none"
@@ -123,7 +123,7 @@ export function UserManagementScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {loading ? <ActivityIndicator color={colors.primary} /> : null}
           <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderText, styles.emailColumn]}>User</Text>
+            <Text style={[styles.tableHeaderText, styles.usernameColumn]}>User</Text>
             <Text style={[styles.tableHeaderText, styles.adminColumn]}>Admin?</Text>
           </View>
           <View style={styles.tableBody}>
@@ -135,8 +135,8 @@ export function UserManagementScreen() {
                 const isAdmin = entry.role === 'admin';
                 return (
                   <View key={entry.id} style={styles.row}>
-                    <View style={styles.emailColumn}>
-                      <Text style={styles.emailText}>{entry.email}</Text>
+                    <View style={styles.usernameColumn}>
+                      <Text style={styles.usernameText}>{entry.username}</Text>
                       {entry.firstName || entry.lastName ? (
                         <Text style={styles.nameText}>
                           {[entry.firstName, entry.lastName].filter(Boolean).join(' ')}

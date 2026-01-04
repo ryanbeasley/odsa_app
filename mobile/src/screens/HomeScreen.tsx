@@ -36,7 +36,7 @@ export function HomeScreen() {
     return null;
   }
 
-  const friendlyName = user.email.split('@')[0];
+  const friendlyName = user.username;
   /**
    * Navigates to the requested tab, resetting filters as needed.
    */

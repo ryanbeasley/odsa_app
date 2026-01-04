@@ -2,7 +2,8 @@ export type Role = 'user' | 'admin';
 
 export type User = {
   id: number;
-  email: string;
+  email: string | null;
+  username: string;
   role: Role;
   firstName: string | null;
   lastName: string | null;

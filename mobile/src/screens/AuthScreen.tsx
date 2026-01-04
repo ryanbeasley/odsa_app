@@ -10,13 +10,13 @@ type AuthMode = 'login' | 'signup';
 
 type AuthScreenProps = {
   mode: AuthMode;
-  email: string;
+  username: string;
   password: string;
   confirmPassword: string;
   authError: string | null;
   authLoading: boolean;
   googleLoading: boolean;
-  onChangeEmail: (value: string) => void;
+  onChangeUsername: (value: string) => void;
   onChangePassword: (value: string) => void;
   onChangeConfirmPassword: (value: string) => void;
   onSubmit: () => void;
@@ -29,13 +29,13 @@ type AuthScreenProps = {
  */
 export function AuthScreen({
   mode,
-  email,
+  username,
   password,
   confirmPassword,
   authError,
   authLoading,
   googleLoading,
-  onChangeEmail,
+  onChangeUsername,
   onChangePassword,
   onChangeConfirmPassword,
   onSubmit,
@@ -51,11 +51,10 @@ export function AuthScreen({
           : 'Sign in to edit and view the current greeting.'}
       </Text>
       <TextField
-        value={email}
-        onChangeText={onChangeEmail}
-        keyboardType="email-address"
+        value={username}
+        onChangeText={onChangeUsername}
         autoCapitalize="none"
-        placeholder="you@example.com"
+        placeholder="Username"
       />
       <TextField
         value={password}

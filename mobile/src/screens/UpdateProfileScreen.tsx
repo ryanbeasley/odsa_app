@@ -15,18 +15,20 @@ export function UpdateProfileScreen() {
   const auth = useAuth();
   const router = useRouter();
   const user = (auth.sessionUser ?? auth.user)!;
+  const [username, setUsername] = useState(user.username ?? '');
   const [firstName, setFirstName] = useState(user.firstName ?? '');
   const [lastName, setLastName] = useState(user.lastName ?? '');
   const [phone, setPhone] = useState(user.phone ?? '');
-  const [email, setEmail] = useState(user.email);
+  const [email, setEmail] = useState(user.email ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setUsername(user.username ?? '');
     setFirstName(user.firstName ?? '');
     setLastName(user.lastName ?? '');
     setPhone(user.phone ?? '');
-    setEmail(user.email);
+    setEmail(user.email ?? '');
   }, [user]);
 
   /**
@@ -36,11 +38,16 @@ export function UpdateProfileScreen() {
     try {
       setSaving(true);
       setError(null);
+      if (!username.trim()) {
+        setError('Username is required.');
+        return;
+      }
       await auth.updateProfile({
+        username: username.trim(),
         firstName: firstName.trim() ? firstName.trim() : null,
         lastName: lastName.trim() ? lastName.trim() : null,
         phone: phone.trim() ? phone.trim() : null,
-        email: email.trim(),
+        email: email.trim() ? email.trim() : null,
       });
       router.back();
     } catch (err) {
@@ -58,6 +65,7 @@ export function UpdateProfileScreen() {
           <Text style={styles.description}>
             Share contact details so organizers can reach you about events or volunteer opportunities. All fields are optional.
           </Text>
+          <TextField label="Username" value={username} onChangeText={setUsername} placeholder="Username" />
           <TextField label="First name" value={firstName} onChangeText={setFirstName} placeholder="First name" />
           <TextField label="Last name" value={lastName} onChangeText={setLastName} placeholder="Last name" />
           <TextField

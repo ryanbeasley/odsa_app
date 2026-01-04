@@ -28,19 +28,21 @@ export const listEventsHandler: RequestHandler = (req: AuthedRequest, res) => {
 /**
  * Creates single or recurring events (admin only).
  */
-export const createEventHandler: RequestHandler = async (req, res) => {
-  const serializedEvent = await createEvents(req.validated as CreateEventPayload);
-  return res.status(201).json({ event: serializedEvent });
+export const createEventHandler: RequestHandler = (req, res) => {
+  void createEvents(req.validated as CreateEventPayload).then((serializedEvent) => {
+    res.status(201).json({ event: serializedEvent });
+  });
 };
 
 /**
  * Updates an event (or regenerates its recurrence) by ID.
  */
-export const updateEventHandler: RequestHandler = async (req, res) => {
+export const updateEventHandler: RequestHandler = (req, res) => {
   const { payload, normalized } = req.validated as UpdateEventPayload;
   const { id } = req.validatedQuery as EventIdPayload;
-  const response = await updateEvents(payload, normalized, id);
-  return res.json({ event: response });
+  void updateEvents(payload, normalized, id).then((response) => {
+    res.json({ event: response });
+  });
 };
 
 /**

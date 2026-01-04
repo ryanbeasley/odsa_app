@@ -8,7 +8,7 @@ import { AuthResponse, Role, User } from '../types';
 type AuthMode = 'login' | 'signup';
 
 type Credentials = {
-  email: string;
+  username: string;
   password: string;
 };
 
@@ -18,10 +18,11 @@ type StartAsyncFn = (options: { authUrl: string; returnUrl?: string }) => Promis
 }>;
 
 type ProfilePayload = {
+  username?: string;
   firstName?: string | null;
   lastName?: string | null;
   phone?: string | null;
-  email?: string;
+  email?: string | null;
   eventAlertsSmsEnabled?: boolean;
 };
 
@@ -118,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSessionUser({
             ...parsedUser,
             eventAlertsSmsEnabled: Boolean(parsedUser.eventAlertsSmsEnabled),
+            username: parsedUser.username ?? '',
           });
         }
       } catch {
@@ -146,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Logs in or signs up the user with email/password credentials.
+   * Logs in or signs up the user with username/password credentials.
    */
   async function authenticate(mode: AuthMode, credentials: Credentials) {
     setAuthLoading(true);
@@ -158,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: credentials.email.trim().toLowerCase(),
+          username: credentials.username.trim().toLowerCase(),
           password: credentials.password,
         }),
       });
@@ -233,7 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const authResult = await startAsync({
         authUrl: `${discovery.authorizationEndpoint}?response_type=id_token&client_id=${process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(
           redirectUri
-        )}&scope=openid%20email%20profile&nonce=${Date.now()}`,
+        )}&scope=openid%username%20profile&nonce=${Date.now()}`,
       });
 
       if (authResult.type !== 'success' || !authResult.params?.id_token) {
@@ -278,6 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        username: payload.username ?? undefined,
         firstName: payload.firstName ?? undefined,
         lastName: payload.lastName ?? undefined,
         phone: payload.phone ?? undefined,
