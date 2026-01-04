@@ -347,18 +347,18 @@ export function EventsScreen() {
         {
           text: 'This event',
           onPress: () => {
-            void copyLink('event');
+            copyLink('event');
           },
         },
         {
           text: 'Entire series',
           onPress: () => {
-            void copyLink('series');
+            copyLink('series');
           },
         },
       ]);
     } else {
-      void copyLink('event');
+      copyLink('event');
     }
   };
 
@@ -521,7 +521,7 @@ export function EventsScreen() {
         seriesPrompt={seriesPrompt}
         onClose={() => setSeriesPrompt(null)}
         onApply={(options) => {
-          void handleToggleAttendance(options.eventId, options);
+          handleToggleAttendance(options.eventId, options);
           setSeriesPrompt(null);
         }}
       />
@@ -686,270 +686,428 @@ function AdminEventForm({
   editingId,
   error,
 }: AdminEventFormProps) {
+  const showSeriesControls = isSeries;
   return (
     <View style={styles.adminPanel}>
-      <TouchableOpacity
-        style={styles.adminToggle}
-        onPress={onClose}
-        activeOpacity={0.85}
-      >
-        <View style={styles.adminToggleContent}>
-          <Feather name="arrow-left" size={18} color={colors.text} />
-          <Text style={styles.adminToggleLabel}>Back to events</Text>
-        </View>
-        <Feather name="chevron-right" size={18} color={colors.textMuted} />
-      </TouchableOpacity>
-
+      <AdminFormHeader onClose={onClose} />
       <View style={styles.form}>
-        <TextField
-          label="Name"
-          value={formState.name}
-          onChangeText={(value) => setFormState((prev) => ({ ...prev, name: value }))}
-          placeholder="Event title"
+        <AdminBasicFields formState={formState} setFormState={setFormState} />
+        <AdminDateFields
+          formState={formState}
+          setFormState={setFormState}
+          openPicker={openPicker}
+          toLocalInputValue={toLocalInputValue}
         />
-        <TextField
-          label="Description"
-          value={formState.description}
-          onChangeText={(value) => setFormState((prev) => ({ ...prev, description: value }))}
-          placeholder="What this event is about"
-          multiline
-          style={styles.textArea}
+        <AdminLocationFields
+          locationType={locationType}
+          setLocationType={setLocationType}
+          locationInput={locationInput}
+          setLocationInput={setLocationInput}
+          formState={formState}
+          setFormState={setFormState}
         />
-        <TextField
-          label="Date & time"
-          value={formState.startAt ? formatTimestamp(formState.startAt) : ''}
-          placeholder="Pick a start date/time"
-          editable={false}
+        <AdminDiscordToggle
+          createDiscordEvent={createDiscordEvent}
+          setCreateDiscordEvent={setCreateDiscordEvent}
         />
-        <View style={styles.webInputWrapper}>
-          {Platform.OS === 'web' ? (
-            <input
-              type="datetime-local"
-              value={formState.startAt ? toLocalInputValue(formState.startAt) : ''}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  startAt: e.target.value ? new Date(e.target.value).toISOString() : '',
-                }))
-              }
-              style={styles.webDateInput as unknown as React.CSSProperties}
-            />
-          ) : (
-            <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('startAt')}>
-              <Feather name="calendar" size={16} color={colors.text} />
-              <Text style={styles.pickerButtonLabel}>Select start</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <TextField
-          label="End date & time"
-          value={formState.endAt ? formatTimestamp(formState.endAt) : ''}
-          placeholder="Pick an end date/time"
-          editable={false}
+        <AdminGroupFields
+          groups={groups}
+          selectedGroup={selectedGroup}
+          formState={formState}
+          setFormState={setFormState}
         />
-        <View style={styles.webInputWrapper}>
-          {Platform.OS === 'web' ? (
-            <input
-              type="datetime-local"
-              value={formState.endAt ? toLocalInputValue(formState.endAt) : ''}
-              onChange={(e) =>
-                setFormState((prev) => ({
-                  ...prev,
-                  endAt: e.target.value ? new Date(e.target.value).toISOString() : '',
-                }))
-              }
-              style={styles.webDateInput as unknown as React.CSSProperties}
-            />
-          ) : (
-            <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('endAt')}>
-              <Feather name="clock" size={16} color={colors.text} />
-              <Text style={styles.pickerButtonLabel}>Select end</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <SelectField
-          label="Location type"
-          value={locationType}
-          onValueChange={(value) => setLocationType(value as 'physical' | 'virtual')}
-          options={[
-            { label: 'Physical location (map link)', value: 'physical' },
-            { label: 'Virtual meeting link', value: 'virtual' },
-          ]}
+        <AdminSeriesFields
+          isSeries={showSeriesControls}
+          seriesEndAt={seriesEndAt}
+          setSeriesEndAt={setSeriesEndAt}
+          recurrence={recurrence}
+          setRecurrence={setRecurrence}
+          monthlyPattern={monthlyPattern}
+          setMonthlyPattern={setMonthlyPattern}
+          onToggleSeries={onToggleSeries}
+          openPicker={openPicker}
+          toLocalInputValue={toLocalInputValue}
+          startAt={formState.startAt}
         />
-        {locationType === 'physical' ? (
-          <TextField
-            label="Address"
-            value={locationInput}
-            onChangeText={setLocationInput}
-            placeholder="123 Main St, Orlando FL"
-            helperText="We will generate a map link automatically."
+        <AdminFormActions
+          error={error}
+          onClose={onClose}
+          onSubmit={onSubmit}
+          canSubmit={canSubmit}
+          saving={saving}
+          editingId={editingId}
+        />
+      </View>
+    </View>
+  );
+}
+
+type AdminFormHeaderProps = {
+  onClose: () => void;
+};
+
+function AdminFormHeader({ onClose }: AdminFormHeaderProps) {
+  return (
+    <TouchableOpacity style={styles.adminToggle} onPress={onClose} activeOpacity={0.85}>
+      <View style={styles.adminToggleContent}>
+        <Feather name="arrow-left" size={18} color={colors.text} />
+        <Text style={styles.adminToggleLabel}>Back to events</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color={colors.textMuted} />
+    </TouchableOpacity>
+  );
+}
+
+type AdminBasicFieldsProps = {
+  formState: AdminEventFormProps['formState'];
+  setFormState: AdminEventFormProps['setFormState'];
+};
+
+function AdminBasicFields({ formState, setFormState }: AdminBasicFieldsProps) {
+  return (
+    <>
+      <TextField
+        label="Name"
+        value={formState.name}
+        onChangeText={(value) => setFormState((prev) => ({ ...prev, name: value }))}
+        placeholder="Event title"
+      />
+      <TextField
+        label="Description"
+        value={formState.description}
+        onChangeText={(value) => setFormState((prev) => ({ ...prev, description: value }))}
+        placeholder="What this event is about"
+        multiline
+        style={styles.textArea}
+      />
+    </>
+  );
+}
+
+type AdminDateFieldsProps = {
+  formState: AdminEventFormProps['formState'];
+  setFormState: AdminEventFormProps['setFormState'];
+  openPicker: AdminEventFormProps['openPicker'];
+  toLocalInputValue: AdminEventFormProps['toLocalInputValue'];
+};
+
+function AdminDateFields({
+  formState,
+  setFormState,
+  openPicker,
+  toLocalInputValue,
+}: AdminDateFieldsProps) {
+  return (
+    <>
+      <TextField
+        label="Date & time"
+        value={formState.startAt ? formatTimestamp(formState.startAt) : ''}
+        placeholder="Pick a start date/time"
+        editable={false}
+      />
+      <View style={styles.webInputWrapper}>
+        {Platform.OS === 'web' ? (
+          <input
+            type="datetime-local"
+            value={formState.startAt ? toLocalInputValue(formState.startAt) : ''}
+            onChange={(e) =>
+              setFormState((prev) => ({
+                ...prev,
+                startAt: e.target.value ? new Date(e.target.value).toISOString() : '',
+              }))
+            }
+            style={styles.webDateInput as unknown as React.CSSProperties}
           />
         ) : (
-          <TextField
-            label="Virtual meeting link"
-            value={locationInput}
-            onChangeText={setLocationInput}
-            placeholder="https://zoom.us/j/..."
-            helperText="Paste the full meeting URL."
-          />
-        )}
-        <TextField
-          label="Location display name (optional)"
-          value={formState.locationDisplayName}
-          onChangeText={(value) => setFormState((prev) => ({ ...prev, locationDisplayName: value }))}
-          placeholder="Community Center Room A"
-          helperText="Shown on the event card while still linking to the location."
-        />
-        <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setCreateDiscordEvent((prev) => !prev)}
-          activeOpacity={0.85}
-        >
-          <Feather
-            name={createDiscordEvent ? 'check-square' : 'square'}
-            size={18}
-            color={colors.text}
-          />
-          <Text style={styles.checkboxLabel}>Create a Discord event</Text>
-        </TouchableOpacity>
-        <SelectField
-          label="Working group"
-          value={formState.workingGroupId}
-          placeholder="Select a working group"
-          options={[
-            { label: 'Select a working group', value: 0 },
-            ...groups.map((group) => ({ label: group.name, value: group.id })),
-          ]}
-          onValueChange={(selected) =>
-            setFormState((prev) => ({ ...prev, workingGroupId: Number(selected) }))
-          }
-          disabled={!groups.length}
-          helperText={
-            !groups.length
-              ? 'Create a working group first to associate this event.'
-              : selectedGroup
-              ? `Selected: ${selectedGroup.name}`
-              : 'Choose the sponsoring working group.'
-          }
-        />
-        <View style={styles.seriesToggle}>
-          <TouchableOpacity
-            style={styles.checkboxRow}
-            activeOpacity={0.85}
-            onPress={onToggleSeries}
-          >
-            <Feather name={isSeries ? 'check-square' : 'square'} size={18} color={colors.text} />
-            <Text style={styles.checkboxLabel}>Make series</Text>
+          <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('startAt')}>
+            <Feather name="calendar" size={16} color={colors.text} />
+            <Text style={styles.pickerButtonLabel}>Select start</Text>
           </TouchableOpacity>
-          {isSeries ? (
-            <View style={styles.seriesControls}>
-              <Text style={styles.groupPickerLabel}>Series ends</Text>
-              <View style={styles.webInputWrapper}>
-                {Platform.OS === 'web' ? (
-                  <input
-                    type="datetime-local"
-                    value={seriesEndAt ? toLocalInputValue(seriesEndAt) : ''}
-                    onChange={(e) =>
-                      setSeriesEndAt(e.target.value ? new Date(e.target.value).toISOString() : '')
-                    }
-                    style={styles.webDateInput as unknown as React.CSSProperties}
-                  />
-                ) : (
-                  <TouchableOpacity
-                    style={styles.pickerButton}
-                    onPress={() => openPicker('seriesEndAt')}
-                  >
-                    <Feather name="calendar" size={16} color={colors.text} />
-                    <Text style={styles.pickerButtonLabel}>Select series end</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {seriesEndAt ? (
-                <Text style={styles.groupHint}>Ends {formatTimestamp(seriesEndAt)}</Text>
-              ) : null}
-              <SelectField
-                label="Repeat"
-                value={recurrence === 'none' ? '' : recurrence}
-                placeholder="Select cadence"
-                options={[
-                  { label: 'Daily', value: 'daily' },
-                  { label: 'Weekly', value: 'weekly' },
-                  { label: 'Monthly', value: 'monthly' },
-                ]}
-                onValueChange={(value) => {
-                  setRecurrence(value as RecurrenceRule);
-                  if (value !== 'monthly') {
-                    setMonthlyPattern('date');
-                  }
-                }}
+        )}
+      </View>
+      <TextField
+        label="End date & time"
+        value={formState.endAt ? formatTimestamp(formState.endAt) : ''}
+        placeholder="Pick an end date/time"
+        editable={false}
+      />
+      <View style={styles.webInputWrapper}>
+        {Platform.OS === 'web' ? (
+          <input
+            type="datetime-local"
+            value={formState.endAt ? toLocalInputValue(formState.endAt) : ''}
+            onChange={(e) =>
+              setFormState((prev) => ({
+                ...prev,
+                endAt: e.target.value ? new Date(e.target.value).toISOString() : '',
+              }))
+            }
+            style={styles.webDateInput as unknown as React.CSSProperties}
+          />
+        ) : (
+          <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('endAt')}>
+            <Feather name="clock" size={16} color={colors.text} />
+            <Text style={styles.pickerButtonLabel}>Select end</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </>
+  );
+}
+
+type AdminLocationFieldsProps = {
+  locationType: AdminEventFormProps['locationType'];
+  setLocationType: AdminEventFormProps['setLocationType'];
+  locationInput: string;
+  setLocationInput: (value: string) => void;
+  formState: AdminEventFormProps['formState'];
+  setFormState: AdminEventFormProps['setFormState'];
+};
+
+function AdminLocationFields({
+  locationType,
+  setLocationType,
+  locationInput,
+  setLocationInput,
+  formState,
+  setFormState,
+}: AdminLocationFieldsProps) {
+  return (
+    <>
+      <SelectField
+        label="Location type"
+        value={locationType}
+        onValueChange={(value) => setLocationType(value as 'physical' | 'virtual')}
+        options={[
+          { label: 'Physical location (map link)', value: 'physical' },
+          { label: 'Virtual meeting link', value: 'virtual' },
+        ]}
+      />
+      {locationType === 'physical' ? (
+        <TextField
+          label="Address"
+          value={locationInput}
+          onChangeText={setLocationInput}
+          placeholder="123 Main St, Orlando FL"
+          helperText="We will generate a map link automatically."
+        />
+      ) : (
+        <TextField
+          label="Virtual meeting link"
+          value={locationInput}
+          onChangeText={setLocationInput}
+          placeholder="https://zoom.us/j/..."
+          helperText="Paste the full meeting URL."
+        />
+      )}
+      <TextField
+        label="Location display name (optional)"
+        value={formState.locationDisplayName}
+        onChangeText={(value) => setFormState((prev) => ({ ...prev, locationDisplayName: value }))}
+        placeholder="Community Center Room A"
+        helperText="Shown on the event card while still linking to the location."
+      />
+    </>
+  );
+}
+
+type AdminDiscordToggleProps = {
+  createDiscordEvent: boolean;
+  setCreateDiscordEvent: AdminEventFormProps['setCreateDiscordEvent'];
+};
+
+function AdminDiscordToggle({ createDiscordEvent, setCreateDiscordEvent }: AdminDiscordToggleProps) {
+  return (
+    <TouchableOpacity
+      style={styles.checkboxRow}
+      onPress={() => setCreateDiscordEvent((prev) => !prev)}
+      activeOpacity={0.85}
+    >
+      <Feather name={createDiscordEvent ? 'check-square' : 'square'} size={18} color={colors.text} />
+      <Text style={styles.checkboxLabel}>Create a Discord event</Text>
+    </TouchableOpacity>
+  );
+}
+
+type AdminGroupFieldsProps = {
+  groups: AdminEventFormProps['groups'];
+  selectedGroup?: AdminEventFormProps['selectedGroup'];
+  formState: AdminEventFormProps['formState'];
+  setFormState: AdminEventFormProps['setFormState'];
+};
+
+function AdminGroupFields({
+  groups,
+  selectedGroup,
+  formState,
+  setFormState,
+}: AdminGroupFieldsProps) {
+  return (
+    <SelectField
+      label="Working group"
+      value={formState.workingGroupId}
+      placeholder="Select a working group"
+      options={[
+        { label: 'Select a working group', value: 0 },
+        ...groups.map((group) => ({ label: group.name, value: group.id })),
+      ]}
+      onValueChange={(selected) =>
+        setFormState((prev) => ({ ...prev, workingGroupId: Number(selected) }))
+      }
+      disabled={!groups.length}
+      helperText={
+        !groups.length
+          ? 'Create a working group first to associate this event.'
+          : selectedGroup
+          ? `Selected: ${selectedGroup.name}`
+          : 'Choose the sponsoring working group.'
+      }
+    />
+  );
+}
+
+type AdminSeriesFieldsProps = {
+  isSeries: boolean;
+  seriesEndAt: string;
+  setSeriesEndAt: (value: string) => void;
+  recurrence: RecurrenceRule;
+  setRecurrence: (value: RecurrenceRule) => void;
+  monthlyPattern: 'date' | 'weekday';
+  setMonthlyPattern: (value: 'date' | 'weekday') => void;
+  onToggleSeries: () => void;
+  openPicker: AdminEventFormProps['openPicker'];
+  toLocalInputValue: AdminEventFormProps['toLocalInputValue'];
+  startAt: string;
+};
+
+function AdminSeriesFields({
+  isSeries,
+  seriesEndAt,
+  setSeriesEndAt,
+  recurrence,
+  setRecurrence,
+  monthlyPattern,
+  setMonthlyPattern,
+  onToggleSeries,
+  openPicker,
+  toLocalInputValue,
+  startAt,
+}: AdminSeriesFieldsProps) {
+  return (
+    <View style={styles.seriesToggle}>
+      <TouchableOpacity style={styles.checkboxRow} activeOpacity={0.85} onPress={onToggleSeries}>
+        <Feather name={isSeries ? 'check-square' : 'square'} size={18} color={colors.text} />
+        <Text style={styles.checkboxLabel}>Make series</Text>
+      </TouchableOpacity>
+      {isSeries ? (
+        <View style={styles.seriesControls}>
+          <Text style={styles.groupPickerLabel}>Series ends</Text>
+          <View style={styles.webInputWrapper}>
+            {Platform.OS === 'web' ? (
+              <input
+                type="datetime-local"
+                value={seriesEndAt ? toLocalInputValue(seriesEndAt) : ''}
+                onChange={(e) => setSeriesEndAt(e.target.value ? new Date(e.target.value).toISOString() : '')}
+                style={styles.webDateInput as unknown as React.CSSProperties}
               />
-              {recurrence === 'monthly' ? (
-                <View style={styles.monthlyPatternWrapper}>
-                  <Text style={styles.groupPickerLabel}>Monthly pattern</Text>
-                  <View style={styles.monthlyOptions}>
-                    <TouchableOpacity
-                      style={[
-                        styles.monthlyOption,
-                        monthlyPattern === 'date' && styles.monthlyOptionActive,
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={() => setMonthlyPattern('date')}
-                    >
-                      <Feather
-                        name={monthlyPattern === 'date' ? 'check-circle' : 'circle'}
-                        size={18}
-                        color={colors.text}
-                      />
-                      <View style={styles.monthlyOptionCopy}>
-                        <Text style={styles.monthlyOptionLabel}>Same calendar date</Text>
-                        <Text style={styles.monthlyOptionDescription}>
-                          {formatMonthlyDateLabel(formState.startAt)}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.monthlyOption,
-                        monthlyPattern === 'weekday' && styles.monthlyOptionActive,
-                      ]}
-                      activeOpacity={0.85}
-                      onPress={() => setMonthlyPattern('weekday')}
-                    >
-                      <Feather
-                        name={monthlyPattern === 'weekday' ? 'check-circle' : 'circle'}
-                        size={18}
-                        color={colors.text}
-                      />
-                      <View style={styles.monthlyOptionCopy}>
-                        <Text style={styles.monthlyOptionLabel}>Same weekday pattern</Text>
-                        <Text style={styles.monthlyOptionDescription}>
-                          {formatMonthlyWeekdayLabel(formState.startAt)}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.pickerButton} onPress={() => openPicker('seriesEndAt')}>
+                <Feather name="calendar" size={16} color={colors.text} />
+                <Text style={styles.pickerButtonLabel}>Select series end</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {seriesEndAt ? <Text style={styles.groupHint}>Ends {formatTimestamp(seriesEndAt)}</Text> : null}
+          <SelectField
+            label="Repeat"
+            value={recurrence === 'none' ? '' : recurrence}
+            placeholder="Select cadence"
+            options={[
+              { label: 'Daily', value: 'daily' },
+              { label: 'Weekly', value: 'weekly' },
+              { label: 'Monthly', value: 'monthly' },
+            ]}
+            onValueChange={(value) => {
+              setRecurrence(value as RecurrenceRule);
+              if (value !== 'monthly') {
+                setMonthlyPattern('date');
+              }
+            }}
+          />
+          {recurrence === 'monthly' ? (
+            <View style={styles.monthlyPatternWrapper}>
+              <Text style={styles.groupPickerLabel}>Monthly pattern</Text>
+              <View style={styles.monthlyOptions}>
+                <TouchableOpacity
+                  style={[styles.monthlyOption, monthlyPattern === 'date' && styles.monthlyOptionActive]}
+                  activeOpacity={0.85}
+                  onPress={() => setMonthlyPattern('date')}
+                >
+                  <Feather
+                    name={monthlyPattern === 'date' ? 'check-circle' : 'circle'}
+                    size={18}
+                    color={colors.text}
+                  />
+                  <View style={styles.monthlyOptionCopy}>
+                    <Text style={styles.monthlyOptionLabel}>Same calendar date</Text>
+                    <Text style={styles.monthlyOptionDescription}>{formatMonthlyDateLabel(startAt)}</Text>
                   </View>
-                </View>
-              ) : null}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.monthlyOption, monthlyPattern === 'weekday' && styles.monthlyOptionActive]}
+                  activeOpacity={0.85}
+                  onPress={() => setMonthlyPattern('weekday')}
+                >
+                  <Feather
+                    name={monthlyPattern === 'weekday' ? 'check-circle' : 'circle'}
+                    size={18}
+                    color={colors.text}
+                  />
+                  <View style={styles.monthlyOptionCopy}>
+                    <Text style={styles.monthlyOptionLabel}>Same weekday pattern</Text>
+                    <Text style={styles.monthlyOptionDescription}>{formatMonthlyWeekdayLabel(startAt)}</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : null}
         </View>
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        <View style={styles.formActions}>
-          <SecondaryButton
-            label="Cancel"
-            onPress={onClose}
-            style={styles.formButton}
-          />
-          <PrimaryButton
-            label={editingId ? 'Update' : 'Save'}
-            onPress={onSubmit}
-            disabled={!canSubmit}
-            loading={saving}
-            style={styles.formButton}
-          />
-        </View>
-      </View>
+      ) : null}
     </View>
+  );
+}
+
+type AdminFormActionsProps = {
+  error: string | null;
+  onClose: () => void;
+  onSubmit: () => void;
+  canSubmit: boolean;
+  saving: boolean;
+  editingId: number | null;
+};
+
+function AdminFormActions({
+  error,
+  onClose,
+  onSubmit,
+  canSubmit,
+  saving,
+  editingId,
+}: AdminFormActionsProps) {
+  return (
+    <>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <View style={styles.formActions}>
+        <SecondaryButton label="Cancel" onPress={onClose} style={styles.formButton} />
+        <PrimaryButton
+          label={editingId ? 'Update' : 'Save'}
+          onPress={onSubmit}
+          disabled={!canSubmit}
+          loading={saving}
+          style={styles.formButton}
+        />
+      </View>
+    </>
   );
 }
 
@@ -1035,6 +1193,17 @@ function EventCard({
   onCalendarInvite,
 }: EventCardProps) {
   const seriesLabel = event.seriesEndAt ? `(ends ${formatTimestamp(event.seriesEndAt)})` : '';
+  const locationContent = renderLocation(event);
+  const seriesContent = event.seriesUuid ? (
+    <Text style={styles.metaValue}>
+      Series: {getRecurrenceLabel(event.recurrenceRule)} {seriesLabel}
+    </Text>
+  ) : null;
+  const occurrencesContent =
+    event.upcomingOccurrences && event.upcomingOccurrences.length > 1 ? (
+      <OccurrencesList event={event} allEvents={allEvents} onToggleAttendance={onToggleAttendance} />
+    ) : null;
+
   return (
     <View style={styles.listItem}>
       <Text style={styles.itemDate}>{formatTimestamp(event.startAt)}</Text>
@@ -1046,78 +1215,93 @@ function EventCard({
       <Text style={styles.metaLabel}>Working group</Text>
       <Text style={styles.metaValue}>{event.workingGroupName ?? `#${event.workingGroupId}`}</Text>
       <Text style={styles.metaLabel}>Location</Text>
-      {event.location ? (
-        <TouchableOpacity onPress={() => openLocationLink(event.location)} activeOpacity={0.8}>
-          <Text style={styles.metaLink} numberOfLines={2}>
-            {getLocationLabel(event.location, event.locationDisplayName)}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <Text style={styles.metaValue}>TBD</Text>
-      )}
+      {locationContent}
       <Text style={styles.metaLabel}>Ends</Text>
       <Text style={styles.metaValue}>{formatTimestamp(event.endAt)}</Text>
-      {event.seriesUuid ? (
-        <Text style={styles.metaValue}>
-          Series: {getRecurrenceLabel(event.recurrenceRule)} {seriesLabel}
-        </Text>
-      ) : null}
-      {event.upcomingOccurrences && event.upcomingOccurrences.length > 1 ? (
-        <OccurrencesList
-          event={event}
-          allEvents={allEvents}
-          onToggleAttendance={onToggleAttendance}
-        />
-      ) : null}
+      {seriesContent}
+      {occurrencesContent}
       {isAdmin ? (
-        <View style={styles.adminActionsRow}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => onEdit(event)}
-            activeOpacity={0.85}
-          >
-            <Feather name="edit-2" size={14} color={colors.text} />
-            <Text style={styles.editLabel}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.editButton, styles.copyButton]}
-            activeOpacity={0.85}
-            onPress={() => onCopyLink(event)}
-          >
-            <Feather name="link-2" size={14} color={colors.text} />
-            <Text style={[styles.editLabel, styles.copyLabel]}>Copy link</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.editButton, styles.deleteButton]}
-            onPress={() => onDelete(event)}
-            activeOpacity={0.85}
-          >
-            <Feather name="trash-2" size={14} color={colors.error} />
-            <Text style={[styles.editLabel, styles.deleteLabel]}>Delete</Text>
-          </TouchableOpacity>
-        </View>
+        <AdminEventActions event={event} onEdit={onEdit} onCopyLink={onCopyLink} onDelete={onDelete} />
       ) : (
-        <View style={styles.cardActionsRow}>
-          <TouchableOpacity
-            style={[styles.editButton, styles.calendarButton]}
-            onPress={() => onCalendarInvite(event)}
-            activeOpacity={0.85}
-          >
-            <Feather name="calendar" size={14} color={colors.text} />
-            <Text style={styles.editLabel}>Add to calendar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.editButton, event.attending ? styles.attendingButton : styles.signUpButton]}
-            onPress={() => handleAttendancePress(event, onToggleAttendance, onPromptSeries)}
-            activeOpacity={0.85}
-          >
-            <Feather name={event.attending ? 'check' : 'user-plus'} size={14} color={event.attending ? '#0f5132' : colors.text} />
-            <Text style={[styles.editLabel, event.attending ? styles.attendingLabel : styles.signUpLabel]}>
-              {event.attending ? 'Attending' : 'Sign up'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <AttendeeEventActions
+          event={event}
+          onCalendarInvite={onCalendarInvite}
+          onToggleAttendance={onToggleAttendance}
+          onPromptSeries={onPromptSeries}
+        />
       )}
+    </View>
+  );
+}
+
+type AdminEventActionsProps = {
+  event: Event;
+  onEdit: (event: Event) => void;
+  onCopyLink: (event: Event) => void;
+  onDelete: (event: Event) => void;
+};
+
+function AdminEventActions({ event, onEdit, onCopyLink, onDelete }: AdminEventActionsProps) {
+  return (
+    <View style={styles.adminActionsRow}>
+      <TouchableOpacity style={styles.editButton} onPress={() => onEdit(event)} activeOpacity={0.85}>
+        <Feather name="edit-2" size={14} color={colors.text} />
+        <Text style={styles.editLabel}>Edit</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.editButton, styles.copyButton]}
+        activeOpacity={0.85}
+        onPress={() => onCopyLink(event)}
+      >
+        <Feather name="link-2" size={14} color={colors.text} />
+        <Text style={[styles.editLabel, styles.copyLabel]}>Copy link</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.editButton, styles.deleteButton]}
+        onPress={() => onDelete(event)}
+        activeOpacity={0.85}
+      >
+        <Feather name="trash-2" size={14} color={colors.error} />
+        <Text style={[styles.editLabel, styles.deleteLabel]}>Delete</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+type AttendeeEventActionsProps = {
+  event: Event;
+  onCalendarInvite: (event: Event) => void;
+  onToggleAttendance: (eventId: number, options: { series: boolean; attending: boolean }) => void;
+  onPromptSeries: (prompt: { eventId: number; attending: boolean } | null) => void;
+};
+
+function AttendeeEventActions({
+  event,
+  onCalendarInvite,
+  onToggleAttendance,
+  onPromptSeries,
+}: AttendeeEventActionsProps) {
+  const attending = Boolean(event.attending);
+  return (
+    <View style={styles.cardActionsRow}>
+      <TouchableOpacity
+        style={[styles.editButton, styles.calendarButton]}
+        onPress={() => onCalendarInvite(event)}
+        activeOpacity={0.85}
+      >
+        <Feather name="calendar" size={14} color={colors.text} />
+        <Text style={styles.editLabel}>Add to calendar</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.editButton, attending ? styles.attendingButton : styles.signUpButton]}
+        onPress={() => handleAttendancePress(event, onToggleAttendance, onPromptSeries)}
+        activeOpacity={0.85}
+      >
+        <Feather name={attending ? 'check' : 'user-plus'} size={14} color={attending ? '#0f5132' : colors.text} />
+        <Text style={[styles.editLabel, attending ? styles.attendingLabel : styles.signUpLabel]}>
+          {attending ? 'Attending' : 'Sign up'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -1127,6 +1311,19 @@ type OccurrencesListProps = {
   allEvents: Event[];
   onToggleAttendance: (eventId: number, options: { series: boolean; attending: boolean }) => void;
 };
+
+function renderLocation(event: Event) {
+  if (!event.location) {
+    return <Text style={styles.metaValue}>TBD</Text>;
+  }
+  return (
+    <TouchableOpacity onPress={() => openLocationLink(event.location)} activeOpacity={0.8}>
+      <Text style={styles.metaLink} numberOfLines={2}>
+        {getLocationLabel(event.location, event.locationDisplayName)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
 
 function OccurrencesList({ event, allEvents, onToggleAttendance }: OccurrencesListProps) {
   const occurrences = event.upcomingOccurrences ?? [];
@@ -1160,7 +1357,7 @@ function OccurrencesList({ event, allEvents, onToggleAttendance }: OccurrencesLi
                     ]}
                     onPress={() => {
                       if (!occurrenceEventId) return;
-                      void onToggleAttendance(occurrenceEventId, {
+                      onToggleAttendance(occurrenceEventId, {
                         series: false,
                         attending: occurrenceAttending,
                       });
@@ -1200,13 +1397,13 @@ function handleAttendancePress(
           {
             text: isAttending ? 'This event' : 'This event only',
             onPress: () => {
-              void onToggleAttendance(event.id, { series: false, attending: isAttending });
+              onToggleAttendance(event.id, { series: false, attending: isAttending });
             },
           },
           {
             text: isAttending ? 'All events' : 'All in series',
             onPress: () => {
-              void onToggleAttendance(event.id, { series: true, attending: isAttending });
+              onToggleAttendance(event.id, { series: true, attending: isAttending });
             },
           },
           { text: 'Cancel', style: 'cancel' },
@@ -1216,7 +1413,7 @@ function handleAttendancePress(
       onPromptSeries({ eventId: event.id, attending: isAttending });
     }
   } else {
-    void onToggleAttendance(event.id, { series: false, attending: isAttending });
+    onToggleAttendance(event.id, { series: false, attending: isAttending });
   }
 }
 

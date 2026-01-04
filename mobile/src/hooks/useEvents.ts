@@ -250,13 +250,18 @@ export function useEvents(token: string | null) {
        * Finds the series UUID for the target event.
        */
       const findTargetSeries = (list: Event[]) => {
-        const direct = list.find((evt) => evt.id === eventId)?.seriesUuid;
-        if (direct) {
-          return direct;
+        for (const evt of list) {
+          if (evt.id === eventId) {
+            return evt.seriesUuid ?? null;
+          }
         }
-        return (
-          list.find((evt) => evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId))?.seriesUuid ?? null
-        );
+        for (const evt of list) {
+          const occurrences = evt.upcomingOccurrences ?? [];
+          if (occurrences.some((occ) => occ.eventId === eventId)) {
+            return evt.seriesUuid ?? null;
+          }
+        }
+        return null;
       };
 
       try {
