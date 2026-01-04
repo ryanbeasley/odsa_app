@@ -62,7 +62,15 @@ export function initLogging() {
   };
 
   console.logRequest = (req: Request) => {
-    console.log('REQUEST', req);
+    const { method, url, headers, body } = req;
+    console.log('REQUEST', {
+      method: method,
+      path: url,
+      headers: Object.fromEntries(
+        Object.entries(headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : value])
+      ),
+      body: body,
+    });
   }
 }
 

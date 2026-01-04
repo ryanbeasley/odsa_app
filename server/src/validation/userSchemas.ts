@@ -17,11 +17,7 @@ export type ProfileUpdateResult = { updates: ProfileUpdates } | { error: string;
 
 export const profileUpdateSchema: Schema<ProfileUpdates> = {
   parse(input: unknown, req?: unknown) {
-    const user = (req as AuthedRequest | undefined)?.user;
-    if (!user) {
-      throw new ValidationError('Unauthorized', 401);
-    }
-    const result = buildProfileUpdates(input, user);
+    const result = buildProfileUpdates(input);
     if ('error' in result) {
       throw new ValidationError(result.error, result.status);
     }
@@ -73,8 +69,7 @@ function normalizePhoneToE164(value: string | null) {
  * Validates and normalizes user profile updates.
  */
 function buildProfileUpdates(
-  body: unknown,
-  currentUser: { username: string }
+  body: unknown
 ): ProfileUpdateResult {
   const { firstName, lastName, phone, email, eventAlertsSmsEnabled, username } = (body ?? {}) as Record<
     string,
