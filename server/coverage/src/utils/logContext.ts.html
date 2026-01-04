@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">86.29% </span>
+                <span class="strong">82.6% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>107/124</span>
+                <span class='fraction'>114/138</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">67.64% </span>
+                <span class="strong">64.86% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>23/34</span>
+                <span class='fraction'>24/37</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">88.88% </span>
+                <span class="strong">90% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>8/9</span>
+                <span class='fraction'>9/10</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">86.29% </span>
+                <span class="strong">82.6% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>107/124</span>
+                <span class='fraction'>114/138</span>
             </div>
         
             
@@ -187,7 +187,21 @@
 <a name='L122'></a><a href='#L122'>122</a>
 <a name='L123'></a><a href='#L123'>123</a>
 <a name='L124'></a><a href='#L124'>124</a>
-<a name='L125'></a><a href='#L125'>125</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L125'></a><a href='#L125'>125</a>
+<a name='L126'></a><a href='#L126'>126</a>
+<a name='L127'></a><a href='#L127'>127</a>
+<a name='L128'></a><a href='#L128'>128</a>
+<a name='L129'></a><a href='#L129'>129</a>
+<a name='L130'></a><a href='#L130'>130</a>
+<a name='L131'></a><a href='#L131'>131</a>
+<a name='L132'></a><a href='#L132'>132</a>
+<a name='L133'></a><a href='#L133'>133</a>
+<a name='L134'></a><a href='#L134'>134</a>
+<a name='L135'></a><a href='#L135'>135</a>
+<a name='L136'></a><a href='#L136'>136</a>
+<a name='L137'></a><a href='#L137'>137</a>
+<a name='L138'></a><a href='#L138'>138</a>
+<a name='L139'></a><a href='#L139'>139</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -218,12 +232,20 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">437x</span>
+<span class="cline-any cline-yes">437x</span>
+<span class="cline-any cline-yes">437x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">412x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">412x</span>
 <span class="cline-any cline-yes">412x</span>
 <span class="cline-any cline-yes">412x</span>
@@ -245,12 +267,18 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-yes">9x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
 <span class="cline-any cline-yes">9x</span>
@@ -343,11 +371,19 @@ const LOG_LEVEL_SEVERITY: Record&lt;LogLevel, number&gt; = {
   [LogLevel.ERROR]: 3,
 };
 &nbsp;
+export function isLogSilenced() {
+  const value = process.env.LOG_SILENT ?? '';
+  return value === '1' || value.toLowerCase() === 'true';
+}
+&nbsp;
 export function runWithLogContext(context: LogContext, callback: () =&gt; void) {
   storage.run(context, callback);
 }
 &nbsp;
 export function getLogContext(level: LogLevel = LogLevel.INFO): LogContext | null {
+  if (isLogSilenced()) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
+<span class="cstat-no" title="statement not covered" >    return null;</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
   const context = storage.getStore();
   const logStream = context?.logStream ?? null;
   if (!context || !logStream || (level &amp;&amp; !shouldLog(level))) {
@@ -365,6 +401,9 @@ export <span class="fstat-no" title="function not covered" >function buildLogCon
 <span class="cstat-no" title="statement not covered" >  logPath: string | null = null,</span>
 <span class="cstat-no" title="statement not covered" >  logLevel: string</span>
 <span class="cstat-no" title="statement not covered" >): LogContext | null {</span>
+<span class="cstat-no" title="statement not covered" >  if (isLogSilenced()) {</span>
+<span class="cstat-no" title="statement not covered" >    return null;</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
 <span class="cstat-no" title="statement not covered" >  const logStream = initLogStream(logPath ?? DEFAULT_LOG_PATH) ?? null;</span>
 <span class="cstat-no" title="statement not covered" >  const typedLogLevel = parseLogLevel(logLevel);</span>
 <span class="cstat-no" title="statement not covered" >  return { userId, sessionId, logStream, logLevel: typedLogLevel };</span>
@@ -375,6 +414,9 @@ export function buildLogContextFromRequest(
   logPath: string | null = null,
   logLevel: string = 'info'
 ): LogContext | null {
+  if (isLogSilenced()) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
+<span class="cstat-no" title="statement not covered" >    return null;</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
   const typedLogLevel = parseLogLevel(logLevel);
   const logStream = initLogStream(<span class="branch-0 cbranch-no" title="branch not covered" >logPath ?? DEFAULT_LOG_PATH<span class="branch-0 cbranch-no" title="branch not covered" >)</span> ?? null;</span>
   const sessionHeader = request.get('x-session-id') ?? request.get('x-request-id');
@@ -442,7 +484,7 @@ function hashRequest(request: Request) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-03T23:39:50.591Z
+                at 2026-01-04T00:12:14.132Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

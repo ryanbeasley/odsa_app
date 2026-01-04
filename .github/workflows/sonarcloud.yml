@@ -53,6 +53,8 @@ jobs:
         run: npm --prefix server ci
       - name: Run server tests with coverage
         run: npm --prefix server run test -- --coverage
+        env:
+          LOG_SILENT: "1"
       - name: Analyze with SonarCloud
 
         # You can pin the exact commit or the version.

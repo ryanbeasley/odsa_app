@@ -1,9 +1,20 @@
 import path from 'path';
 import util from 'util';
 import type { Request } from 'express';
-import { getLogContext, LogLevel } from './logContext';
+import { getLogContext, isLogSilenced, LogLevel } from './logContext';
 
 export function initLogging() {
+  if (isLogSilenced()) {
+    const noop = () => {};
+    console.log = noop;
+    console.info = noop;
+    console.warn = noop;
+    console.error = noop;
+    console.debug = noop;
+    console.logEnter = noop;
+    console.logRequest = () => {};
+    return;
+  }
   const writeLine = (level: LogLevel, args: unknown[]) => {
     const context = getLogContext(level);
     if (!context) {

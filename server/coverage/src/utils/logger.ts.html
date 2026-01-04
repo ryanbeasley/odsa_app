@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">84.11% </span>
+                <span class="strong">77.11% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>90/107</span>
+                <span class='fraction'>91/118</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">80.64% </span>
+                <span class="strong">78.12% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>25/31</span>
+                <span class='fraction'>25/32</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">72.72% </span>
+                <span class="strong">61.53% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>8/11</span>
+                <span class='fraction'>8/13</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">84.11% </span>
+                <span class="strong">77.11% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>90/107</span>
+                <span class='fraction'>91/118</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line high'></div>
+    <div class='status-line medium'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -170,12 +170,34 @@
 <a name='L105'></a><a href='#L105'>105</a>
 <a name='L106'></a><a href='#L106'>106</a>
 <a name='L107'></a><a href='#L107'>107</a>
-<a name='L108'></a><a href='#L108'>108</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-yes">8x</span>
 <span class="cline-any cline-yes">412x</span>
 <span class="cline-any cline-yes">412x</span>
@@ -280,9 +302,20 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import path from 'path';
 import util from 'util';
 import type { Request } from 'express';
-import { getLogContext, LogLevel } from './logContext';
+import { getLogContext, isLogSilenced, LogLevel } from './logContext';
 &nbsp;
 export function initLogging() {
+  if (isLogSilenced()) <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
+<span class="cstat-no" title="statement not covered" >    const noop = <span class="fstat-no" title="function not covered" >() =&gt; {};</span></span>
+<span class="cstat-no" title="statement not covered" >    console.log = noop;</span>
+<span class="cstat-no" title="statement not covered" >    console.info = noop;</span>
+<span class="cstat-no" title="statement not covered" >    console.warn = noop;</span>
+<span class="cstat-no" title="statement not covered" >    console.error = noop;</span>
+<span class="cstat-no" title="statement not covered" >    console.debug = noop;</span>
+<span class="cstat-no" title="statement not covered" >    console.logEnter = noop;</span>
+<span class="cstat-no" title="statement not covered" >    console.logRequest = <span class="fstat-no" title="function not covered" >() =&gt; {};</span></span>
+<span class="cstat-no" title="statement not covered" >    return;</span>
+<span class="cstat-no" title="statement not covered" >  }</span>
   const writeLine = (level: LogLevel, args: unknown[]) =&gt; {
     const context = getLogContext(level);
     if (!context) {
@@ -391,7 +424,7 @@ function normalizeLogArg(arg: unknown) {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-03T23:39:50.591Z
+                at 2026-01-04T00:12:14.132Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

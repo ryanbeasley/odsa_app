@@ -4,7 +4,7 @@ import authController from './controllers/authController';
 import homeController from './controllers/homeController';
 import eventsController from './controllers/eventsController';
 import settingsController from './controllers/settingsController';
-import { buildLogContextFromRequest, DEFAULT_LOG_PATH, runWithLogContext } from './utils/logContext';
+import { buildLogContextFromRequest, DEFAULT_LOG_PATH, isLogSilenced, runWithLogContext } from './utils/logContext';
 import { initLogging } from './utils/logger';
 
 type AppOptions = {
@@ -13,6 +13,7 @@ type AppOptions = {
 
 export function createApp(options: AppOptions = {}) {
   const logPath = process.env.LOG_FILE_PATH ?? DEFAULT_LOG_PATH;
+  const logSilenced = isLogSilenced();
   initLogging();
 
   const app = express();
@@ -23,7 +24,7 @@ export function createApp(options: AppOptions = {}) {
    * Log context middleware
    */
   app.use((req, _res, next) => {
-    if (options.disableLogContext) {
+    if (options.disableLogContext || logSilenced) {
       return next();
     }
     const context = buildLogContextFromRequest(
@@ -40,10 +41,12 @@ export function createApp(options: AppOptions = {}) {
   /**
    * Request logging middleware
    */
-  app.use((req, _res, next) => {
-    console.logRequest(req);
-    next();
-  });
+  if (!logSilenced) {
+    app.use((req, _res, next) => {
+      console.logRequest(req);
+      next();
+    });
+  }
 
   /**
    * Basic CORS middleware allowing configurable origins/methods/headers.

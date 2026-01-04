@@ -30,11 +30,19 @@ const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {
   [LogLevel.ERROR]: 3,
 };
 
+export function isLogSilenced() {
+  const value = process.env.LOG_SILENT ?? '';
+  return value === '1' || value.toLowerCase() === 'true';
+}
+
 export function runWithLogContext(context: LogContext, callback: () => void) {
   storage.run(context, callback);
 }
 
 export function getLogContext(level: LogLevel = LogLevel.INFO): LogContext | null {
+  if (isLogSilenced()) {
+    return null;
+  }
   const context = storage.getStore();
   const logStream = context?.logStream ?? null;
   if (!context || !logStream || (level && !shouldLog(level))) {
@@ -52,6 +60,9 @@ export function buildLogContext(
   logPath: string | null = null,
   logLevel: string
 ): LogContext | null {
+  if (isLogSilenced()) {
+    return null;
+  }
   const logStream = initLogStream(logPath ?? DEFAULT_LOG_PATH) ?? null;
   const typedLogLevel = parseLogLevel(logLevel);
   return { userId, sessionId, logStream, logLevel: typedLogLevel };
@@ -62,6 +73,9 @@ export function buildLogContextFromRequest(
   logPath: string | null = null,
   logLevel: string = 'info'
 ): LogContext | null {
+  if (isLogSilenced()) {
+    return null;
+  }
   const typedLogLevel = parseLogLevel(logLevel);
   const logStream = initLogStream(logPath ?? DEFAULT_LOG_PATH) ?? null;
   const sessionHeader = request.get('x-session-id') ?? request.get('x-request-id');
