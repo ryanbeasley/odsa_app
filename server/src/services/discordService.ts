@@ -366,7 +366,9 @@ function buildSeriesOccurrences(event: DiscordScheduledEvent) {
     while (cursor <= endLimit) {
       if (weekIndex % interval === 0) {
         for (const day of weekdays) {
-          const date = addDays(cursor, discordWeekdayToJs(day));
+          const jsDay = discordWeekdayToJs(day);
+          const offset = (jsDay + 6) % 7;
+          const date = addDays(cursor, offset);
           if (date < start || date > endLimit) {
             continue;
           }
@@ -409,7 +411,16 @@ function buildOccurrence(startAt: Date, endAt: Date) {
 function startOfWeek(date: Date) {
   const day = date.getUTCDay();
   const diff = (day + 6) % 7;
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - diff, date.getUTCHours(), date.getUTCMinutes(), date.getUTCSeconds()));
+  return new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() - diff,
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds()
+    )
+  );
 }
 
 function addDays(date: Date, days: number) {
