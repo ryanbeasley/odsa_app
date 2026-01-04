@@ -1,6 +1,17 @@
 import webPush from 'web-push';
-import { EXPO_PUSH_TOKEN, EVENT_ALERT_HOUR_MS, EVENT_ALERT_INTERVAL_MS, EVENT_ALERT_LOOKAHEAD_HOURS, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY } from '../config/env';
-import { listPushSubscriptions, listEventAlertCandidates } from '../repositories/pushSubscriptionRepository';
+import twilio from 'twilio';
+import {
+  EXPO_PUSH_TOKEN,
+  EVENT_ALERT_HOUR_MS,
+  EVENT_ALERT_INTERVAL_MS,
+  EVENT_ALERT_LOOKAHEAD_HOURS,
+  TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN,
+  TWILIO_PHONE_NUMBER,
+  VAPID_PRIVATE_KEY,
+  VAPID_PUBLIC_KEY,
+} from '../config/env';
+import { listPushSubscriptions, listEventAlertCandidates, listEventAlertSmsCandidates } from '../repositories/pushSubscriptionRepository';
 import { hasEventNotificationLog, recordEventNotificationLog } from '../repositories/notificationRepository';
 import { runWithLogContext, DEFAULT_LOG_PATH, buildLogContext } from '../utils/logContext';
 
@@ -9,6 +20,11 @@ type ExpoPushMessage = { to: string; title: string; body: string };
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webPush.setVapidDetails('mailto:push@odsa.local', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 }
+
+const twilioClient =
+  TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
+    ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    : null;
 
 /**
  * Sends a batch of Expo push notifications in chunks.
@@ -99,6 +115,54 @@ export async function processEventAlertNotifications() {
   }
 }
 
+/**
+ * Generates and sends SMS reminders for upcoming attendee events.
+ */
+export async function processEventAlertSMSNotifications() {
+  console.logEnter();
+  if (!twilioClient || !TWILIO_PHONE_NUMBER) {
+    return;
+  }
+  const now = new Date();
+  const candidates = listEventAlertSmsCandidates(EVENT_ALERT_LOOKAHEAD_HOURS);
+  const lookaheadMs = EVENT_ALERT_LOOKAHEAD_HOURS * 60 * 60 * 1000;
+  for (const candidate of candidates) {
+    const startAt = new Date(candidate.start_at);
+    if (Number.isNaN(startAt.getTime())) {
+      continue;
+    }
+    const diffMs = startAt.getTime() - now.getTime();
+    if (diffMs <= 0) {
+      continue;
+    }
+    const phone = candidate.phone.trim();
+    if (!phone.startsWith('+')) {
+      continue;
+    }
+
+    if (diffMs <= lookaheadMs && !hasEventNotificationLog(candidate.event_id, candidate.user_id, 'sms-day-of')) {
+      recordEventNotificationLog(candidate.event_id, candidate.user_id, 'sms-day-of');
+      await twilioClient.messages.create({
+        from: TWILIO_PHONE_NUMBER,
+        to: phone,
+        body: `Reminder: ${candidate.event_name} is happening within the next 24 hours.`,
+      });
+    }
+
+    if (
+      diffMs <= EVENT_ALERT_HOUR_MS &&
+      !hasEventNotificationLog(candidate.event_id, candidate.user_id, 'sms-hour-before')
+    ) {
+      recordEventNotificationLog(candidate.event_id, candidate.user_id, 'sms-hour-before');
+      await twilioClient.messages.create({
+        from: TWILIO_PHONE_NUMBER,
+        to: phone,
+        body: `You have an event starting soon: ${candidate.event_name}.`,
+      });
+    }
+  }
+}
+
 let eventAlertTimer: NodeJS.Timeout | null = null;
 
 /**
@@ -122,12 +186,20 @@ export function startEventAlertScheduler() {
         // eslint-disable-next-line no-console
         console.error('Failed to process event alerts', err);
       });
+      processEventAlertSMSNotifications().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Failed to process SMS event alerts', err);
+      });
       return;
     }
     runWithLogContext(context, () => {
       void processEventAlertNotifications().catch((err) => {
         // eslint-disable-next-line no-console
         console.error('Failed to process event alerts', err);
+      });
+      void processEventAlertSMSNotifications().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('Failed to process SMS event alerts', err);
       });
     });
   };

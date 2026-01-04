@@ -127,6 +127,7 @@ type ProfileUpdates = {
   last_name?: string | null;
   phone?: string | null;
   email?: string;
+  event_alerts_sms_enabled?: number;
 };
 
 function requireUser(req: AuthedRequest, res: Response) {
@@ -148,10 +149,31 @@ function readOptionalString(value: unknown) {
   return { value: trimmed };
 }
 
+function normalizePhoneToE164(value: string | null) {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/^\+\d{8,15}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `+1${digits}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+${digits}`;
+  }
+  return null;
+}
+
 type ProfileUpdateResult = { updates: ProfileUpdates } | { error: string; status: number };
 
 function buildProfileUpdates(body: unknown, currentEmail: string): ProfileUpdateResult {
-  const { firstName, lastName, phone, email } = (body ?? {}) as Record<string, unknown>;
+  const { firstName, lastName, phone, email, eventAlertsSmsEnabled } = (body ?? {}) as Record<string, unknown>;
   const updates: ProfileUpdates = {};
 
   const assignOptionalField = (
@@ -183,11 +205,29 @@ function buildProfileUpdates(body: unknown, currentEmail: string): ProfileUpdate
     return lastError;
   }
 
-  const phoneError = assignOptionalField('Phone', phone, (value) => {
-    updates.phone = value;
-  });
-  if (phoneError) {
-    return phoneError;
+  const parsedPhone = readOptionalString(phone);
+  if (parsedPhone === null) {
+    return { error: 'Phone must be a string', status: 400 };
+  }
+  if (parsedPhone.value !== undefined) {
+    const normalized = normalizePhoneToE164(parsedPhone.value);
+    if (parsedPhone.value && !normalized) {
+      return { error: 'Phone must be a valid E.164 number (e.g. +14075551234)', status: 400 };
+    }
+    updates.phone = normalized;
+  }
+
+  if (email === undefined) {
+    if (eventAlertsSmsEnabled === undefined) {
+      return { updates };
+    }
+  }
+
+  if (eventAlertsSmsEnabled !== undefined) {
+    if (typeof eventAlertsSmsEnabled !== 'boolean') {
+      return { error: 'SMS event alerts must be true or false', status: 400 };
+    }
+    updates.event_alerts_sms_enabled = eventAlertsSmsEnabled ? 1 : 0;
   }
 
   if (email === undefined) {

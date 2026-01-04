@@ -90,7 +90,8 @@ function ensureTables() {
       role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
       first_name TEXT,
       last_name TEXT,
-      phone TEXT
+      phone TEXT,
+      event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0
     )`
   ).run();
 
@@ -100,18 +101,6 @@ function ensureTables() {
       token TEXT NOT NULL,
       announcement_alerts_enabled INTEGER NOT NULL DEFAULT 1,
       event_alerts_enabled INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`
-  ).run();
-
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS web_push_subscriptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      endpoint TEXT NOT NULL UNIQUE,
-      p256dh TEXT NOT NULL,
-      auth TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )`
@@ -208,6 +197,9 @@ function runMigrations() {
   }
   if (!userColumns.some((col) => col.name === 'phone')) {
     db.prepare('ALTER TABLE users ADD COLUMN phone TEXT').run();
+  }
+  if (!userColumns.some((col) => col.name === 'event_alerts_sms_enabled')) {
+    db.prepare('ALTER TABLE users ADD COLUMN event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0').run();
   }
 
   const pushColumns = db.prepare<[], { name: string }>('PRAGMA table_info(push_subscriptions)').all();

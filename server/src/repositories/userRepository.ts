@@ -55,7 +55,13 @@ export function listUsers(search?: string): UserRow[] {
  */
 export function updateUserProfile(
   id: number,
-  updates: { email?: string; first_name?: string | null; last_name?: string | null; phone?: string | null }
+  updates: {
+    email?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+    event_alerts_sms_enabled?: number;
+  }
 ): UserRow | undefined {
   console.logEnter();
   const fields: string[] = [];
@@ -75,6 +81,10 @@ export function updateUserProfile(
   if (updates.phone !== undefined) {
     fields.push('phone = ?');
     values.push(updates.phone);
+  }
+  if (updates.event_alerts_sms_enabled !== undefined) {
+    fields.push('event_alerts_sms_enabled = ?');
+    values.push(updates.event_alerts_sms_enabled);
   }
   if (!fields.length) {
     return findUserById(id);

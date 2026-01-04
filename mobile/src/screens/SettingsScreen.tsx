@@ -28,6 +28,8 @@ export function SettingsScreen() {
     : 'Viewing as a member to mirror their experience.';
   const [discordSyncing, setDiscordSyncing] = useState(false);
   const [discordSyncMessage, setDiscordSyncMessage] = useState<string | null>(null);
+  const [smsSaving, setSmsSaving] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
 
   /**
    * Toggles announcement or event push notifications.
@@ -50,6 +52,23 @@ export function SettingsScreen() {
 
   const getStatusText = (enabled: boolean) =>
     push.loading ? '...' : enabled ? 'On' : 'Off';
+  const getSmsStatusText = (enabled: boolean) =>
+    smsSaving ? '...' : enabled ? 'On' : 'Off';
+
+  const handleToggleSmsAlerts = async () => {
+    if (smsSaving) {
+      return;
+    }
+    try {
+      setSmsSaving(true);
+      setSmsError(null);
+      await auth.updateProfile({ eventAlertsSmsEnabled: !accountUser.eventAlertsSmsEnabled });
+    } catch (error) {
+      setSmsError(error instanceof Error ? error.message : 'Failed to update SMS alerts');
+    } finally {
+      setSmsSaving(false);
+    }
+  };
 
   const handleDiscordSync = async () => {
     if (discordSyncing || !auth.token) {
@@ -157,6 +176,10 @@ export function SettingsScreen() {
             push={push}
             onToggle={handleToggleNotifications}
             getStatusText={getStatusText}
+            smsEnabled={Boolean(accountUser.eventAlertsSmsEnabled)}
+            smsStatusText={getSmsStatusText(Boolean(accountUser.eventAlertsSmsEnabled))}
+            onToggleSms={handleToggleSmsAlerts}
+            smsError={smsError}
           />
         </SectionCard>
 
@@ -191,9 +214,21 @@ type NotificationsSectionProps = {
   push: ReturnType<typeof useAppData>['push'];
   onToggle: (type: 'announcements' | 'events') => void;
   getStatusText: (enabled: boolean) => string;
+  smsEnabled: boolean;
+  smsStatusText: string;
+  onToggleSms: () => void;
+  smsError: string | null;
 };
 
-function NotificationsSection({ push, onToggle, getStatusText }: NotificationsSectionProps) {
+function NotificationsSection({
+  push,
+  onToggle,
+  getStatusText,
+  smsEnabled,
+  smsStatusText,
+  onToggleSms,
+  smsError,
+}: NotificationsSectionProps) {
   return (
     <View style={styles.navPanel}>
       <NavItem
@@ -222,7 +257,15 @@ function NotificationsSection({ push, onToggle, getStatusText }: NotificationsSe
           </Text>
         }
       />
+      <NavItem
+        icon={smsEnabled ? 'check-square' : 'square'}
+        label="SMS Event alerts"
+        description="Receive 24-hour and one-hour reminders for events you&apos;re attending via text."
+        onPress={onToggleSms}
+        right={<Text style={[styles.statusBadge, !smsEnabled && styles.statusBadgeMuted]}>{smsStatusText}</Text>}
+      />
       {push.error ? <Text style={styles.errorText}>{push.error}</Text> : null}
+      {smsError ? <Text style={styles.errorText}>{smsError}</Text> : null}
     </View>
   );
 }

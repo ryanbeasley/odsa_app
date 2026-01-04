@@ -7,6 +7,7 @@ export type User = {
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
+  eventAlertsSmsEnabled: boolean;
 };
 
 export type AuthResponse = {

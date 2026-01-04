@@ -20,7 +20,7 @@ import { styles } from './SupportDetailsScreen.styles';
 import { useAuth } from '../hooks/useAuth';
 import { useLogoutHandler } from '../hooks/useLogoutHandler';
 
-const appVersion = (appConfig as { expo?: { version?: string } }).expo?.version ?? '1.0.0';
+const appVersion = (appConfig as { expo?: { version?: string } }).expo?.version ?? '1.0.1';
 
 /**
  * Screen that lists support resources and lets admins manage those links.

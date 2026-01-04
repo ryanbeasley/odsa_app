@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Calendar from 'expo-calendar';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
 import { SectionCard } from '../components/SectionCard';
@@ -381,6 +382,18 @@ export function EventsScreen() {
     const currentValue = (() => {
       if (field === 'seriesEndAt') {
         return seriesEndAt ? new Date(seriesEndAt) : new Date();
+      }
+      if (field === 'endAt') {
+        if (formState.endAt) {
+          return new Date(formState.endAt);
+        }
+        if (formState.startAt) {
+          const startDate = new Date(formState.startAt);
+          if (!Number.isNaN(startDate.getTime())) {
+            return new Date(startDate.getTime() + 60 * 60 * 1000);
+          }
+        }
+        return new Date();
       }
       const raw = formState[field];
       return raw ? new Date(raw) : new Date();
@@ -1466,6 +1479,23 @@ function DateTimePickerModal({ visible, pickerValue, onClose, onSave, onChange }
   if (!visible) {
     return null;
   }
+  const handleDateChange = (_: unknown, date?: Date) => {
+    if (!date) {
+      return;
+    }
+    const next = new Date(pickerValue);
+    next.setFullYear(date.getFullYear(), date.getMonth(), date.getDate());
+    onChange(next);
+  };
+
+  const handleTimeChange = (_: unknown, date?: Date) => {
+    if (!date) {
+      return;
+    }
+    const next = new Date(pickerValue);
+    next.setHours(date.getHours(), date.getMinutes(), 0, 0);
+    onChange(next);
+  };
   return (
     <Modal
       transparent
@@ -1476,16 +1506,24 @@ function DateTimePickerModal({ visible, pickerValue, onClose, onSave, onChange }
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>Select date &amp; time</Text>
-          <DateTimePicker
-            value={pickerValue}
-            mode="datetime"
-            display={Platform.OS === 'ios' ? 'inline' : 'spinner'}
-            onChange={(_, date) => {
-              if (date) {
-                onChange(date);
-              }
-            }}
-          />
+          <View style={styles.iosPickerGrid}>
+            <DateTimePicker
+              value={pickerValue}
+              mode="date"
+              display="spinner"
+              textColor={colors.text}
+              themeVariant="light"
+              onChange={handleDateChange}
+            />
+            <DateTimePicker
+              value={pickerValue}
+              mode="time"
+              display="spinner"
+              textColor={colors.text}
+              themeVariant="light"
+              onChange={handleTimeChange}
+            />
+          </View>
           <View style={styles.modalActions}>
             <SecondaryButton label="Cancel" onPress={onClose} style={styles.modalButton} />
             <PrimaryButton label="Save" onPress={onSave} style={styles.modalButton} />
@@ -1606,55 +1644,50 @@ function openLocationLink(value: string) {
  * Generates and opens a calendar invite for the given event.
  */
 function openCalendarInvite(event: Event) {
-  const start = toIcsDate(event.startAt);
-  const end = toIcsDate(event.endAt);
-  if (!start || !end) {
-    Alert.alert('Calendar unavailable', 'This event is missing a valid start or end time.');
-    return;
-  }
-  const summary = escapeIcsText(event.name);
-  const description = escapeIcsText(event.description);
-  const locationLabel = escapeIcsText(getLocationLabel(event.location, event.locationDisplayName));
-  const url = escapeIcsText(event.location);
-  const uid = `${event.id}-${start}@odsa.local`;
-  const timestamp = toIcsDate(new Date().toISOString()) ?? start;
-  const ics = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//ODSA//Events//EN',
-    'CALSCALE:GREGORIAN',
-    'BEGIN:VEVENT',
-    `UID:${uid}`,
-    `DTSTAMP:${timestamp}`,
-    `DTSTART:${start}`,
-    `DTEND:${end}`,
-    `SUMMARY:${summary}`,
-    `DESCRIPTION:${description}\\n${url}`,
-    `LOCATION:${locationLabel}`,
-    `URL:${url}`,
-    'END:VEVENT',
-    'END:VCALENDAR',
-  ].join('\n');
-  const dataUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(ics)}`;
-  Linking.openURL(dataUrl);
-}
+  void (async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Calendar unavailable', 'Adding events to a calendar is not supported on web.');
+      return;
+    }
+    const startDate = new Date(event.startAt);
+    const endDate = new Date(event.endAt);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      Alert.alert('Calendar unavailable', 'This event is missing a valid start or end time.');
+      return;
+    }
 
-/**
- * Converts an ISO date string into ICS date format (YYYYMMDDTHHMMSSZ).
- */
-function toIcsDate(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return parsed.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
-}
+    const permission = await Calendar.requestCalendarPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Calendar permission needed', 'Enable calendar access to add events.');
+      return;
+    }
 
-/**
- * Escapes text for inclusion in an ICS file.
- */
-function escapeIcsText(value: string) {
-  return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+    const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+    const defaultCalendar =
+      calendars.find((calendar) => calendar.isPrimary) ??
+      calendars.find((calendar) => calendar.allowsModifications) ??
+      calendars[0];
+    if (!defaultCalendar) {
+      Alert.alert('Calendar unavailable', 'No writable calendar found on this device.');
+      return;
+    }
+
+    const locationLabel = getLocationLabel(event.location, event.locationDisplayName);
+    const notes = event.description ? `${event.description}${event.location ? `\n${event.location}` : ''}` : event.location;
+    const url = isHttpLink(event.location) ? event.location : undefined;
+
+    await Calendar.createEventAsync(defaultCalendar.id, {
+      title: event.name,
+      startDate,
+      endDate,
+      location: locationLabel,
+      notes: notes || undefined,
+      url,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+    Alert.alert('Added to calendar', 'The event has been added to your calendar.');
+  })();
 }
 
 const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

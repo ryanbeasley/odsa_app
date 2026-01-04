@@ -104,7 +104,15 @@ export type EventAlertCandidateRow = {
   token: string;
 };
 
-export type EventNotificationType = 'day-of' | 'hour-before';
+export type EventAlertSmsCandidateRow = {
+  event_id: number;
+  event_name: string;
+  start_at: string;
+  user_id: number;
+  phone: string;
+};
+
+export type EventNotificationType = 'day-of' | 'hour-before' | 'sms-day-of' | 'sms-hour-before';
 
 export interface UserRow {
   id: number;
@@ -114,6 +122,7 @@ export interface UserRow {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  event_alerts_sms_enabled: number;
 }
 
 export type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'monthly';

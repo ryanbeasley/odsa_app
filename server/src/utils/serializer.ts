@@ -19,6 +19,7 @@ export function toPublicUser(user: UserRow) {
     firstName: user.first_name ?? null,
     lastName: user.last_name ?? null,
     phone: user.phone ?? null,
+    eventAlertsSmsEnabled: Boolean(user.event_alerts_sms_enabled),
   };
 }
 

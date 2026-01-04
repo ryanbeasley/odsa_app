@@ -403,6 +403,29 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  iosPickerGrid: {
+    gap: spacing.sm,
+  },
+  iosPickerRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  iosPickerColumn: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  iosPickerLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: spacing.xs / 2,
+  },
+  iosPicker: {
+    width: '100%',
+  },
+  iosPickerItem: {
+    fontSize: 16,
+    color: colors.text,
+  },
   modalMessage: {
     fontSize: 14,
     color: colors.textMuted,

@@ -1,5 +1,5 @@
 import { db } from '../db/connection';
-import { EventAlertCandidateRow, PushSubscriptionRow } from '../types';
+import { EventAlertCandidateRow, EventAlertSmsCandidateRow, PushSubscriptionRow } from '../types';
 
 /**
  * Looks up a push subscription by user ID.
@@ -77,6 +77,34 @@ export function listEventAlertCandidates(hoursAhead = 24): EventAlertCandidateRo
       INNER JOIN events e ON e.id = ea.event_id
       INNER JOIN push_subscriptions ps ON ps.user_id = ea.user_id
       WHERE ps.event_alerts_enabled = 1
+        AND e.start_at IS NOT NULL
+        AND datetime(e.start_at) >= datetime('now')
+        AND datetime(e.start_at) <= datetime('now', ?)`
+    )
+    .all(window);
+}
+
+/**
+ * Lists SMS attendees whose events start within the specified window.
+ */
+export function listEventAlertSmsCandidates(hoursAhead = 24): EventAlertSmsCandidateRow[] {
+  console.logEnter();
+  const clampedHours = Math.max(1, hoursAhead);
+  const window = `+${clampedHours} hours`;
+  return db
+    .prepare<[string], EventAlertSmsCandidateRow>(
+      `SELECT
+        e.id as event_id,
+        e.name as event_name,
+        e.start_at as start_at,
+        ea.user_id as user_id,
+        u.phone as phone
+      FROM event_attendees ea
+      INNER JOIN events e ON e.id = ea.event_id
+      INNER JOIN users u ON u.id = ea.user_id
+      WHERE u.event_alerts_sms_enabled = 1
+        AND u.phone IS NOT NULL
+        AND TRIM(u.phone) <> ''
         AND e.start_at IS NOT NULL
         AND datetime(e.start_at) >= datetime('now')
         AND datetime(e.start_at) <= datetime('now', ?)`

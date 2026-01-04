@@ -22,6 +22,7 @@ type ProfilePayload = {
   lastName?: string | null;
   phone?: string | null;
   email?: string;
+  eventAlertsSmsEnabled?: boolean;
 };
 
 type AuthContextValue = {
@@ -114,7 +115,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (storedToken && storedUser) {
           const parsedUser = JSON.parse(storedUser) as User;
           setToken(storedToken);
-          setSessionUser(parsedUser);
+          setSessionUser({
+            ...parsedUser,
+            eventAlertsSmsEnabled: Boolean(parsedUser.eventAlertsSmsEnabled),
+          });
         }
       } catch {
         // ignore storage errors and force login
@@ -278,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName: payload.lastName ?? undefined,
         phone: payload.phone ?? undefined,
         email: payload.email ?? undefined,
+        eventAlertsSmsEnabled: payload.eventAlertsSmsEnabled ?? undefined,
       }),
     });
     if (!response.ok) {
