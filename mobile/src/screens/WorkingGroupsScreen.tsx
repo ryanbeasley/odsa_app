@@ -31,6 +31,7 @@ export function WorkingGroupsScreen() {
   const [showForm, setShowForm] = useState(false);
   const [formState, setFormState] = useState({ name: '', description: '', members: '' });
   const [editingId, setEditingId] = useState<number | null>(null);
+  const formToggleLabel = showForm ? 'Hide form' : editingId ? 'Edit working group' : 'Add working group';
 
   /**
    * Ensures the admin form is filled out before enabling submission.
@@ -57,7 +58,7 @@ export function WorkingGroupsScreen() {
       } else {
         await groupsState.createGroup(payload);
       }
-      handleResetForm();
+      resetForm();
     } catch {
       // error handled upstream
     }
@@ -66,10 +67,20 @@ export function WorkingGroupsScreen() {
   /**
    * Clears the form and hides the admin editor.
    */
-  const handleResetForm = () => {
+  const resetForm = () => {
     setFormState({ name: '', description: '', members: '' });
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const startEditForm = (group: typeof groups[number]) => {
+    setFormState({
+      name: group.name,
+      description: group.description,
+      members: group.members,
+    });
+    setEditingId(group.id);
+    setShowForm(true);
   };
 
   /**
@@ -85,7 +96,7 @@ export function WorkingGroupsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            void groupsState.deleteGroup(id);
+            groupsState.deleteGroup(id);
           },
         },
       ]
@@ -102,59 +113,19 @@ export function WorkingGroupsScreen() {
           </Text>
 
           {isAdmin ? (
-            <View style={styles.adminPanel}>
-              <TouchableOpacity
-                style={styles.adminToggle}
-                onPress={() => setShowForm((prev) => !prev)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.adminToggleContent}>
-                  <Feather name={showForm ? 'minus-square' : 'plus-square'} size={18} color={colors.text} />
-                  <Text style={styles.adminToggleLabel}>
-                    {showForm ? 'Hide form' : editingId ? 'Edit working group' : 'Add working group'}
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-
-              {showForm ? (
-                <View style={styles.form}>
-                  <TextField
-                    label="Name"
-                    value={formState.name}
-                    onChangeText={(value) => setFormState((prev) => ({ ...prev, name: value }))}
-                    placeholder="E.g., Electoral, Political Education"
-                  />
-                  <TextField
-                    label="Description"
-                    value={formState.description}
-                    onChangeText={(value) => setFormState((prev) => ({ ...prev, description: value }))}
-                    placeholder="What this working group does"
-                    multiline
-                    style={styles.textArea}
-                  />
-                  <TextField
-                    label="Committee members"
-                    value={formState.members}
-                    onChangeText={(value) => setFormState((prev) => ({ ...prev, members: value }))}
-                    placeholder="List first + last names (comma-separated)"
-                    multiline
-                    style={styles.textArea}
-                  />
-                  {error ? <Text style={styles.errorText}>{error}</Text> : null}
-                  <View style={styles.formActions}>
-                    <SecondaryButton label="Cancel" onPress={handleResetForm} style={styles.formButton} />
-                    <PrimaryButton
-                      label={editingId ? 'Update' : 'Save'}
-                      onPress={handleSubmit}
-                      disabled={!canSubmit}
-                      loading={saving}
-                      style={styles.formButton}
-                    />
-                  </View>
-                </View>
-              ) : null}
-            </View>
+            <WorkingGroupForm
+              showForm={showForm}
+              formToggleLabel={formToggleLabel}
+              toggleForm={() => setShowForm((prev) => !prev)}
+              formState={formState}
+              setFormState={setFormState}
+              error={error}
+              editingId={editingId}
+              saving={saving}
+              canSubmit={canSubmit}
+              onCancel={resetForm}
+              onSubmit={handleSubmit}
+            />
           ) : null}
 
           {loading ? (
@@ -162,43 +133,13 @@ export function WorkingGroupsScreen() {
           ) : groups.length ? (
             <View style={styles.groupList}>
               {groups.map((group) => (
-                <View key={group.id} style={styles.groupItem}>
-                  <View style={styles.groupHeader}>
-                    <Text style={styles.groupName}>{group.name}</Text>
-                    <Text style={styles.groupDate}>{formatTimestamp(group.createdAt)}</Text>
-                  </View>
-                  <Text style={styles.groupDescription}>{group.description}</Text>
-                  <Text style={styles.groupMembersLabel}>Committee members</Text>
-                  <Text style={styles.groupMembers}>{group.members}</Text>
-                  {isAdmin ? (
-                    <View style={styles.groupActions}>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => {
-                          setFormState({
-                            name: group.name,
-                            description: group.description,
-                            members: group.members,
-                          });
-                          setEditingId(group.id);
-                          setShowForm(true);
-                        }}
-                        activeOpacity={0.85}
-                      >
-                        <Feather name="edit-2" size={14} color={colors.text} />
-                        <Text style={styles.editLabel}>Edit</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.editButton, styles.deleteButton]}
-                        onPress={() => handleDeleteGroup(group.id, group.name)}
-                        activeOpacity={0.85}
-                      >
-                        <Feather name="trash-2" size={14} color={colors.error} />
-                        <Text style={[styles.editLabel, styles.deleteLabel]}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : null}
-                </View>
+                <WorkingGroupCard
+                  key={group.id}
+                  group={group}
+                  isAdmin={isAdmin}
+                  onEdit={() => startEditForm(group)}
+                  onDelete={() => handleDeleteGroup(group.id, group.name)}
+                />
               ))}
             </View>
           ) : (
@@ -207,6 +148,144 @@ export function WorkingGroupsScreen() {
         </SectionCard>
       </ScrollView>
     </View>
+  );
+}
+
+type AppData = ReturnType<typeof useAppData>;
+type WorkingGroup = AppData['groups']['groups'][number];
+
+type FormState = {
+  name: string;
+  description: string;
+  members: string;
+};
+
+type WorkingGroupFormProps = {
+  showForm: boolean;
+  formToggleLabel: string;
+  toggleForm: () => void;
+  formState: FormState;
+  setFormState: React.Dispatch<React.SetStateAction<FormState>>;
+  error: string | null;
+  editingId: number | null;
+  saving: boolean;
+  canSubmit: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+};
+
+function WorkingGroupForm({
+  showForm,
+  formToggleLabel,
+  toggleForm,
+  formState,
+  setFormState,
+  error,
+  editingId,
+  saving,
+  canSubmit,
+  onCancel,
+  onSubmit,
+}: WorkingGroupFormProps) {
+  return (
+    <View style={styles.adminPanel}>
+      <TouchableOpacity
+        style={styles.adminToggle}
+        onPress={toggleForm}
+        activeOpacity={0.85}
+      >
+        <View style={styles.adminToggleContent}>
+          <Feather name={showForm ? 'minus-square' : 'plus-square'} size={18} color={colors.text} />
+          <Text style={styles.adminToggleLabel}>{formToggleLabel}</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.textMuted} />
+      </TouchableOpacity>
+
+      {showForm ? (
+        <View style={styles.form}>
+          <TextField
+            label="Name"
+            value={formState.name}
+            onChangeText={(value) => setFormState((prev) => ({ ...prev, name: value }))}
+            placeholder="E.g., Electoral, Political Education"
+          />
+          <TextField
+            label="Description"
+            value={formState.description}
+            onChangeText={(value) => setFormState((prev) => ({ ...prev, description: value }))}
+            placeholder="What this working group does"
+            multiline
+            style={styles.textArea}
+          />
+          <TextField
+            label="Committee members"
+            value={formState.members}
+            onChangeText={(value) => setFormState((prev) => ({ ...prev, members: value }))}
+            placeholder="List first + last names (comma-separated)"
+            multiline
+            style={styles.textArea}
+          />
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <View style={styles.formActions}>
+            <SecondaryButton label="Cancel" onPress={onCancel} style={styles.formButton} />
+            <PrimaryButton
+              label={editingId ? 'Update' : 'Save'}
+              onPress={onSubmit}
+              disabled={!canSubmit}
+              loading={saving}
+              style={styles.formButton}
+            />
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+type WorkingGroupCardProps = {
+  group: WorkingGroup;
+  isAdmin: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+};
+
+function WorkingGroupCard({ group, isAdmin, onEdit, onDelete }: WorkingGroupCardProps) {
+  return (
+    <View style={styles.groupItem}>
+      <View style={styles.groupHeader}>
+        <Text style={styles.groupName}>{group.name}</Text>
+        <Text style={styles.groupDate}>{formatTimestamp(group.createdAt)}</Text>
+      </View>
+      <Text style={styles.groupDescription}>{group.description}</Text>
+      <Text style={styles.groupMembersLabel}>Committee members</Text>
+      <Text style={styles.groupMembers}>{group.members}</Text>
+      {isAdmin ? (
+        <View style={styles.groupActions}>
+          <ActionButton icon="edit-2" label="Edit" onPress={onEdit} />
+          <ActionButton icon="trash-2" label="Delete" onPress={onDelete} danger />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+type ActionButtonProps = {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+};
+
+function ActionButton({ icon, label, onPress, danger = false }: ActionButtonProps) {
+  return (
+    <TouchableOpacity
+      style={[styles.editButton, danger && styles.deleteButton]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <Feather name={icon} size={14} color={danger ? colors.error : colors.text} />
+      <Text style={[styles.editLabel, danger && styles.deleteLabel]}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 

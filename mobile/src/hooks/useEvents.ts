@@ -24,6 +24,16 @@ export function useEvents(token: string | null) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const parseError = async (response: Response) => {
+    const body = await response.json().catch(() => ({}));
+    return body?.error ?? `Request failed (${response.status})`;
+  };
+
+  const buildEventBody = (payload: EventPayload) => ({
+    ...payload,
+    locationDisplayName: payload.locationDisplayName ?? null,
+  });
+
   /**
    * Clears all state when the user logs out or token is missing.
    */
@@ -51,8 +61,7 @@ export function useEvents(token: string | null) {
         },
       });
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(body?.error ?? `Request failed (${response.status})`);
+        throw new Error(await parseError(response));
       }
       const data = (await response.json()) as EventsResponse;
       setEvents(data.events);
@@ -74,21 +83,16 @@ export function useEvents(token: string | null) {
       try {
         setSaving(true);
         setError(null);
-        const body = {
-          ...payload,
-          locationDisplayName: payload.locationDisplayName ?? null,
-        };
         const response = await fetch(`${SERVER_URL}/api/events`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(buildEventBody(payload)),
         });
         if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body?.error ?? `Request failed (${response.status})`);
+          throw new Error(await parseError(response));
         }
         const data = (await response.json()) as EventCreateResponse;
         setEvents((prev) => [data.event, ...prev]);
@@ -113,21 +117,16 @@ export function useEvents(token: string | null) {
       try {
         setSaving(true);
         setError(null);
-        const body = {
-          ...payload,
-          locationDisplayName: payload.locationDisplayName ?? null,
-        };
         const response = await fetch(`${SERVER_URL}/api/events/${id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify(buildEventBody(payload)),
         });
         if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body?.error ?? `Request failed (${response.status})`);
+          throw new Error(await parseError(response));
         }
         const data = (await response.json()) as EventCreateResponse;
         setEvents((prev) => prev.map((evt) => (evt.id === id ? data.event : evt)));
@@ -161,8 +160,7 @@ export function useEvents(token: string | null) {
           body: JSON.stringify({ series: options.series }),
         });
         if (!response.ok && response.status !== 204) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body?.error ?? `Request failed (${response.status})`);
+          throw new Error(await parseError(response));
         }
 
         const targetEvent = events.find((evt) => evt.id === id);
@@ -199,6 +197,55 @@ export function useEvents(token: string | null) {
         return;
       }
       const path = `${SERVER_URL}/api/events/${eventId}/attendees`;
+      const delta = options.attending ? -1 : 1;
+
+      /**
+       * Updates attendance counts locally in state.
+       */
+      const updateOccurrences = (
+        occurrences: Event['upcomingOccurrences'] | undefined,
+        applyAll: boolean
+      ) =>
+        occurrences?.map((occ) => {
+          if (!applyAll && occ.eventId !== eventId) {
+            return occ;
+          }
+          const nextCount = Math.max(0, (occ.attendeeCount ?? 0) + delta);
+          return {
+            ...occ,
+            attending: !options.attending,
+            attendeeCount: nextCount,
+          };
+        });
+
+      /**
+       * Applies attendance updates to the relevant events.
+       */
+      const applyAttendanceUpdate = (evt: Event, targetSeries: string | null) => {
+        const hasOccurrence = evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId);
+        const isSeriesMatch = Boolean(options.series && targetSeries && evt.seriesUuid === targetSeries);
+        const isTarget = evt.id === eventId;
+
+        if (isSeriesMatch || isTarget) {
+          const nextCount = Math.max(0, (evt.attendeeCount ?? 0) + delta);
+          return {
+            ...evt,
+            attending: !options.attending,
+            attendeeCount: nextCount,
+            upcomingOccurrences: updateOccurrences(evt.upcomingOccurrences, isSeriesMatch),
+          };
+        }
+
+        if (hasOccurrence) {
+          return {
+            ...evt,
+            upcomingOccurrences: updateOccurrences(evt.upcomingOccurrences, false),
+          };
+        }
+
+        return evt;
+      };
+
       try {
         setSaving(true);
         setError(null);
@@ -211,60 +258,14 @@ export function useEvents(token: string | null) {
           body: JSON.stringify({ series: options.series }),
         });
         if (!response.ok && response.status !== 204) {
-          const body = await response.json().catch(() => ({}));
-          throw new Error(body?.error ?? `Request failed (${response.status})`);
-       }
+          throw new Error(await parseError(response));
+        }
         setEvents((prev) => {
-          const delta = options.attending ? -1 : 1;
-          const updateOccurrences = (
-            occurrences: Event['upcomingOccurrences'] | undefined,
-            applyAll: boolean
-          ) =>
-            occurrences?.map((occ) => {
-              const shouldApply = applyAll || occ.eventId === eventId;
-              if (!shouldApply) return occ;
-              const nextCount = Math.max(0, (occ.attendeeCount ?? 0) + delta);
-              return {
-                ...occ,
-                attending: !options.attending,
-                attendeeCount: nextCount,
-              };
-            });
-
           const targetSeries =
             prev.find((evt) => evt.id === eventId)?.seriesUuid ??
             prev.find((evt) => evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId))?.seriesUuid ??
             null;
-          return prev.map((evt) => {
-            if (options.series && targetSeries && evt.seriesUuid === targetSeries) {
-              const nextCount = Math.max(0, (evt.attendeeCount ?? 0) + delta);
-              const nextOccs = updateOccurrences(evt.upcomingOccurrences, true);
-              return {
-                ...evt,
-                attending: !options.attending,
-                attendeeCount: nextCount,
-                upcomingOccurrences: nextOccs,
-              };
-            }
-            if (evt.id === eventId) {
-              const nextCount = Math.max(0, (evt.attendeeCount ?? 0) + delta);
-              const nextOccs = updateOccurrences(evt.upcomingOccurrences, false);
-              return {
-                ...evt,
-                attending: !options.attending,
-                attendeeCount: nextCount,
-                upcomingOccurrences: nextOccs,
-              };
-            }
-            if (evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId)) {
-              const nextOccs = updateOccurrences(evt.upcomingOccurrences, false);
-              return {
-                ...evt,
-                upcomingOccurrences: nextOccs,
-              };
-            }
-            return evt;
-          });
+          return prev.map((evt) => applyAttendanceUpdate(evt, targetSeries));
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');

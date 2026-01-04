@@ -65,7 +65,7 @@ export function UserManagementScreen() {
       return;
     }
     const handle = setTimeout(() => {
-      void fetchUsers(query);
+      fetchUsers(query);
     }, 300);
     return () => clearTimeout(handle);
   }, [fetchUsers, query, token]);

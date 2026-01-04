@@ -1,19 +1,12 @@
-import { Router } from 'express';
-import { EXPO_PUSH_TOKEN, VAPID_PUBLIC_KEY } from '../config/env';
+import { Response, Router } from 'express';
 import { authenticate, AuthedRequest, requireAdmin } from '../middleware/authenticate';
 import {
   deletePushSubscription,
   findPushSubscriptionByUserId,
   upsertPushSubscription,
 } from '../repositories/pushSubscriptionRepository';
-import {
-  deleteWebPushSubscription,
-  findWebPushSubscriptionByEndpoint,
-  listWebPushSubscriptions,
-  upsertWebPushSubscription,
-} from '../repositories/webPushRepository';
 import { listUsers, updateUserProfile, updateUserRole, findUserByEmail } from '../repositories/userRepository';
-import { serializePushSubscription, serializeWebPushSubscription, toPublicUser } from '../utils/serializer';
+import { serializePushSubscription, toPublicUser } from '../utils/serializer';
 import { signToken } from '../utils/jwt';
 import { syncDiscordEvents } from '../services/discordService';
 
@@ -23,47 +16,16 @@ const router = Router();
  * Updates the authenticated user's profile details.
  */
 router.patch('/profile', authenticate, (req: AuthedRequest, res) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const user = requireUser(req, res);
+  if (!user) {
+    return;
   }
-  const { firstName, lastName, phone, email } = req.body ?? {};
-
-  const updates: { first_name?: string | null; last_name?: string | null; phone?: string | null; email?: string } = {};
-  if (firstName !== undefined) {
-    if (firstName !== null && typeof firstName !== 'string') {
-      return res.status(400).json({ error: 'firstName must be a string' });
-    }
-    updates.first_name = firstName?.trim() ? firstName.trim() : null;
-  }
-  if (lastName !== undefined) {
-    if (lastName !== null && typeof lastName !== 'string') {
-      return res.status(400).json({ error: 'lastName must be a string' });
-    }
-    updates.last_name = lastName?.trim() ? lastName.trim() : null;
-  }
-  if (phone !== undefined) {
-    if (phone !== null && typeof phone !== 'string') {
-      return res.status(400).json({ error: 'phone must be a string' });
-    }
-    updates.phone = phone?.trim() ? phone.trim() : null;
-  }
-  if (email !== undefined) {
-    if (email !== null && typeof email !== 'string') {
-      return res.status(400).json({ error: 'email must be a string' });
-    }
-    const normalizedEmail = email?.trim().toLowerCase() ?? null;
-    if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return res.status(400).json({ error: 'email is invalid' });
-    }
-    if (normalizedEmail && normalizedEmail !== req.user.email && findUserByEmail(normalizedEmail)) {
-      return res.status(409).json({ error: 'email already registered' });
-    }
-    if (normalizedEmail) {
-      updates.email = normalizedEmail;
-    }
+  const result = buildProfileUpdates(req.body, user.email);
+  if ('error' in result) {
+    return res.status(result.status).json({ error: result.error });
   }
 
-  const updated = updateUserProfile(req.user.id, updates);
+  const updated = updateUserProfile(user.id, result.updates);
   if (!updated) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -79,10 +41,11 @@ router.post('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
   if (typeof token !== 'string' || !token.trim()) {
     return res.status(400).json({ error: 'token is required' });
   }
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const user = requireUser(req, res);
+  if (!user) {
+    return;
   }
-  const subscription = upsertPushSubscription(req.user.id, token.trim(), {
+  const subscription = upsertPushSubscription(user.id, token.trim(), {
     announcementAlertsEnabled: typeof announcementAlertsEnabled === 'boolean' ? announcementAlertsEnabled : undefined,
     eventAlertsEnabled: typeof eventAlertsEnabled === 'boolean' ? eventAlertsEnabled : undefined,
   });
@@ -93,10 +56,11 @@ router.post('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
  * Returns the current push subscription for the authenticated user.
  */
 router.get('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const user = requireUser(req, res);
+  if (!user) {
+    return;
   }
-  const existing = findPushSubscriptionByUserId(req.user.id);
+  const existing = findPushSubscriptionByUserId(user.id);
   return res.json({ subscription: existing ? serializePushSubscription(existing) : null });
 });
 
@@ -104,10 +68,11 @@ router.get('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
  * Deletes the current user's push subscription.
  */
 router.delete('/push-subscriptions', authenticate, (req: AuthedRequest, res) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const user = requireUser(req, res);
+  if (!user) {
+    return;
   }
-  deletePushSubscription(req.user.id);
+  deletePushSubscription(user.id);
   return res.status(204).send();
 });
 
@@ -156,3 +121,78 @@ router.post('/discord-sync', authenticate, requireAdmin, async (_req: AuthedRequ
 });
 
 export default router;
+
+type ProfileUpdates = {
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  email?: string;
+};
+
+function requireUser(req: AuthedRequest, res: Response) {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
+  }
+  return req.user;
+}
+
+function readOptionalString(value: unknown) {
+  if (value === undefined) {
+    return { value: undefined };
+  }
+  if (value !== null && typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = typeof value === 'string' ? value.trim() : null;
+  return { value: trimmed ? trimmed : null };
+}
+
+type ProfileUpdateResult = { updates: ProfileUpdates } | { error: string; status: number };
+
+function buildProfileUpdates(body: unknown, currentEmail: string): ProfileUpdateResult {
+  const { firstName, lastName, phone, email } = (body ?? {}) as Record<string, unknown>;
+  const updates: ProfileUpdates = {};
+
+  const first = readOptionalString(firstName);
+  if (first === null) {
+    return { error: 'First name must be a string', status: 400 };
+  }
+  if (first.value !== undefined) {
+    updates.first_name = first.value;
+  }
+
+  const last = readOptionalString(lastName);
+  if (last === null) {
+    return { error: 'Last name must be a string', status: 400 };
+  }
+  if (last.value !== undefined) {
+    updates.last_name = last.value;
+  }
+
+  const phoneField = readOptionalString(phone);
+  if (phoneField === null) {
+    return { error: 'Phone must be a string', status: 400 };
+  }
+  if (phoneField.value !== undefined) {
+    updates.phone = phoneField.value;
+  }
+
+  if (email !== undefined) {
+    if (email !== null && typeof email !== 'string') {
+      return { error: 'Email must be a string', status: 400 };
+    }
+    const normalizedEmail = email?.trim().toLowerCase() ?? null;
+    if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return { error: 'Email is invalid', status: 400 };
+    }
+    if (normalizedEmail && normalizedEmail !== currentEmail && findUserByEmail(normalizedEmail)) {
+      return { error: 'Email already registered', status: 409 };
+    }
+    if (normalizedEmail) {
+      updates.email = normalizedEmail;
+    }
+  }
+
+  return { updates };
+}

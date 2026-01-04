@@ -71,6 +71,64 @@ export function EventsScreen() {
   const [filterGroupId, setFilterGroupId] = useState<number | null>(null);
   const [seriesPrompt, setSeriesPrompt] = useState<{ eventId: number; attending: boolean } | null>(null);
 
+  const resetFormState = () => {
+    setFormState({
+      name: '',
+      description: '',
+      workingGroupId: 0,
+      startAt: '',
+      endAt: '',
+      location: '',
+      locationDisplayName: '',
+    });
+    setCreateDiscordEvent(false);
+    setLocationInput('');
+    setLocationType('physical');
+    setEditingId(null);
+    setIsSeries(false);
+    setSeriesEndAt('');
+    setRecurrence('none');
+    setMonthlyPattern('date');
+  };
+
+  const startCreateForm = () => {
+    resetFormState();
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setIsSeries(false);
+    setSeriesEndAt('');
+    setRecurrence('none');
+    setMonthlyPattern('date');
+  };
+
+  const startEditForm = (event: Event) => {
+    const parsedAddress = parseMapAddress(event.location);
+    const nextLocationType = parsedAddress ? 'physical' : 'virtual';
+    setFormState({
+      name: event.name,
+      description: event.description,
+      workingGroupId: event.workingGroupId,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      location: event.location,
+      locationDisplayName: event.locationDisplayName ?? '',
+    });
+    setCreateDiscordEvent(Boolean(event.discordEventId));
+    setLocationType(nextLocationType);
+    setLocationInput(parsedAddress ?? event.location);
+    setIsSeries(Boolean(event.seriesUuid));
+    setSeriesEndAt(event.seriesEndAt ?? '');
+    const nextSettings = deriveRecurrenceSettings(event.recurrenceRule);
+    setRecurrence(nextSettings.recurrence);
+    setMonthlyPattern(nextSettings.monthlyPattern);
+    setEditingId(event.id);
+    setShowForm(true);
+  };
+
   useEffect(() => {
     const rawEvent = Array.isArray(params.eventId) ? params.eventId[0] : params.eventId;
     const rawSeries = Array.isArray(params.seriesId) ? params.seriesId[0] : params.seriesId;
@@ -145,25 +203,9 @@ export function EventsScreen() {
       } else {
         await eventsState.createEvent(payload);
       }
-      setFormState({
-        name: '',
-        description: '',
-        workingGroupId: 0,
-        startAt: '',
-        endAt: '',
-        location: '',
-        locationDisplayName: '',
-      });
-      setCreateDiscordEvent(false);
-      setLocationInput('');
-      setLocationType('physical');
-      setEditingId(null);
-      setIsSeries(false);
-      setSeriesEndAt('');
-      setRecurrence('none');
-      setMonthlyPattern('date');
+      resetFormState();
       setShowForm(false);
-      void eventsState.refresh();
+      eventsState.refresh();
     } catch {
       // error handled upstream
     }
@@ -200,6 +242,11 @@ export function EventsScreen() {
   }, [attendingOnly, events, filterGroupId, focus, search]);
 
   const selectedGroup = groups.find((g) => g.id === formState.workingGroupId);
+  const headerDescription = showForm
+    ? editingId
+      ? 'Edit event.'
+      : 'Create a new event.'
+    : "See what's on the calendar and which working group is leading it.";
   /**
    * Produces helper text describing whichever event/series is focused.
    */
@@ -239,14 +286,14 @@ export function EventsScreen() {
             text: 'This event',
             style: 'destructive',
             onPress: () => {
-              void eventsState.deleteEvent(event.id, { series: false }).catch(() => {});
+              eventsState.deleteEvent(event.id, { series: false }).catch(() => {});
             },
           },
           {
             text: 'Entire series',
             style: 'destructive',
             onPress: () => {
-              void eventsState.deleteEvent(event.id, { series: true }).catch(() => {});
+              eventsState.deleteEvent(event.id, { series: true }).catch(() => {});
             },
           },
         ]
@@ -258,7 +305,7 @@ export function EventsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            void eventsState.deleteEvent(event.id, { series: false }).catch(() => {});
+            eventsState.deleteEvent(event.id, { series: false }).catch(() => {});
           },
         },
       ]);
@@ -384,15 +431,7 @@ export function EventsScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <SectionCard style={styles.section}>
           <Text style={styles.sectionLabel}>Upcoming Events</Text>
-          {showForm ? (
-            <Text style={styles.sectionDescription}>
-              {editingId ? 'Edit event' : 'Create a new event'}.
-            </Text>
-          ) : (
-            <Text style={styles.sectionDescription}>
-              See what&apos;s on the calendar and which working group is leading it.
-            </Text>
-          )}
+          <Text style={styles.sectionDescription}>{headerDescription}</Text>
 
           {!showForm ? (
             <View style={styles.filterPanel}>
@@ -427,24 +466,7 @@ export function EventsScreen() {
                 <PrimaryButton
                   label="Add event"
                   onPress={() => {
-                    setShowForm(true);
-                    setEditingId(null);
-                    setFormState({
-                      name: '',
-                      description: '',
-                      workingGroupId: 0,
-                      startAt: '',
-                      endAt: '',
-                      location: '',
-                      locationDisplayName: '',
-                    });
-                    setCreateDiscordEvent(false);
-                    setLocationInput('');
-                    setLocationType('physical');
-                    setIsSeries(false);
-                    setSeriesEndAt('');
-                    setRecurrence('none');
-                    setMonthlyPattern('date');
+                    startCreateForm();
                   }}
                 />
               ) : null}
@@ -468,12 +490,7 @@ export function EventsScreen() {
               <TouchableOpacity
                 style={styles.adminToggle}
                 onPress={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                    setIsSeries(false);
-                    setSeriesEndAt('');
-                    setRecurrence('none');
-                    setMonthlyPattern('date');
+                    closeForm();
                   }}
                 activeOpacity={0.85}
               >
@@ -851,27 +868,7 @@ export function EventsScreen() {
                         <TouchableOpacity
                           style={styles.editButton}
                           onPress={() => {
-                            const parsedAddress = parseMapAddress(event.location);
-                            const nextLocationType = parsedAddress ? 'physical' : 'virtual';
-                            setFormState({
-                              name: event.name,
-                              description: event.description,
-                              workingGroupId: event.workingGroupId,
-                              startAt: event.startAt,
-                              endAt: event.endAt,
-                              location: event.location,
-                              locationDisplayName: event.locationDisplayName ?? '',
-                            });
-                            setCreateDiscordEvent(Boolean(event.discordEventId));
-                            setLocationType(nextLocationType);
-                            setLocationInput(parsedAddress ?? event.location);
-                            setIsSeries(Boolean(event.seriesUuid));
-                            setSeriesEndAt(event.seriesEndAt ?? '');
-                            const nextSettings = deriveRecurrenceSettings(event.recurrenceRule);
-                            setRecurrence(nextSettings.recurrence);
-                            setMonthlyPattern(nextSettings.monthlyPattern);
-                            setEditingId(event.id);
-                            setShowForm(true);
+                            startEditForm(event);
                           }}
                           activeOpacity={0.85}
                         >
@@ -1077,6 +1074,9 @@ function buildMapLink(address: string) {
   return `https://maps.google.com/?q=${encodeURIComponent(address.trim())}`;
 }
 
+/**
+ * Parses a map address from a Google Maps or Apple Maps URL.
+ */
 function parseMapAddress(value: string) {
   if (!value.trim()) {
     return null;
@@ -1095,6 +1095,9 @@ function parseMapAddress(value: string) {
   }
 }
 
+/**
+ * Gets the display label for a location, preferring the alias if provided.
+ */
 function getLocationLabel(value: string, displayName?: string | null) {
   const alias = displayName?.trim();
   if (alias) {
@@ -1103,6 +1106,9 @@ function getLocationLabel(value: string, displayName?: string | null) {
   return parseMapAddress(value) || value;
 }
 
+/**
+ * Determines if a string is a valid HTTP/HTTPS URL.
+ */
 function isHttpLink(value: string) {
   try {
     const parsed = new URL(value.trim());
@@ -1112,14 +1118,20 @@ function isHttpLink(value: string) {
   }
 }
 
+/**
+ * Opens the given location link in the device's browser or map app.
+ */
 function openLocationLink(value: string) {
   if (!isHttpLink(value)) {
     Alert.alert('Invalid location link', 'This event location is not a valid URL.');
     return;
   }
-  void Linking.openURL(value);
+  Linking.openURL(value);
 }
 
+/**
+ * Generates and opens a calendar invite for the given event.
+ */
 function openCalendarInvite(event: Event) {
   const start = toIcsDate(event.startAt);
   const end = toIcsDate(event.endAt);
@@ -1151,9 +1163,12 @@ function openCalendarInvite(event: Event) {
     'END:VCALENDAR',
   ].join('\n');
   const dataUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(ics)}`;
-  void Linking.openURL(dataUrl);
+  Linking.openURL(dataUrl);
 }
 
+/**
+ * Converts an ISO date string into ICS date format (YYYYMMDDTHHMMSSZ).
+ */
 function toIcsDate(value: string) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -1162,6 +1177,9 @@ function toIcsDate(value: string) {
   return parsed.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
+/**
+ * Escapes text for inclusion in an ICS file.
+ */
 function escapeIcsText(value: string) {
   return value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
 }
@@ -1185,6 +1203,9 @@ function getOrdinalWord(index: number) {
   return words[index - 1] ?? `${index}th`;
 }
 
+/**
+ * Builds a Discord recurrence rule from user-selected settings.
+ */
 function buildRecurrenceRule(params: {
   enabled: boolean;
   recurrence: RecurrenceRule;
@@ -1221,6 +1242,9 @@ function buildRecurrenceRule(params: {
   return rule;
 }
 
+/**
+ * Derives recurrence settings from a Discord recurrence rule.
+ */
 function deriveRecurrenceSettings(rule: DiscordRecurrenceRule | null): {
   recurrence: RecurrenceRule;
   monthlyPattern: 'date' | 'weekday';
@@ -1240,6 +1264,9 @@ function deriveRecurrenceSettings(rule: DiscordRecurrenceRule | null): {
   return { recurrence: 'none', monthlyPattern: 'date' };
 }
 
+/**
+ * Gets a human-readable label for a recurrence rule.
+ */
 function getRecurrenceLabel(rule: DiscordRecurrenceRule | null) {
   if (!rule) {
     return 'one-time';
@@ -1256,6 +1283,9 @@ function getRecurrenceLabel(rule: DiscordRecurrenceRule | null) {
   }
 }
 
+/**
+ * Maps JS Date weekday to Discord weekday.
+ */
 function mapDiscordWeekday(date: Date) {
   const day = date.getUTCDay();
   if (day === 0) {
@@ -1264,6 +1294,9 @@ function mapDiscordWeekday(date: Date) {
   return day - 1;
 }
 
+/**
+ * Gets the week index of the month for a given date (1-5).
+ */
 function getWeekIndex(date: Date) {
   return Math.ceil(date.getUTCDate() / 7);
 }

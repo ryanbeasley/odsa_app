@@ -61,7 +61,7 @@ describe('settingsController integration', () => {
       .send({ email: 'not-an-email' });
 
     expect(response.status).toBe(400);
-    expect(response.body.error).toBe('email is invalid');
+    expect(response.body.error).toBe('Email is invalid');
   });
 
   it('manages push subscriptions for a user', async () => {

@@ -4,7 +4,7 @@ import { listPushSubscriptions } from '../repositories/pushSubscriptionRepositor
 import { listWebPushSubscriptions } from '../repositories/webPushRepository';
 import { listEventAlertCandidates } from '../repositories/pushSubscriptionRepository';
 import { hasEventNotificationLog, recordEventNotificationLog } from '../repositories/notificationRepository';
-import { runWithLogContext, buildLogContext } from '../utils/logContext';
+import { runWithLogContext, DEFAULT_LOG_PATH, buildLogContext } from '../utils/logContext';
 
 type ExpoPushMessage = { to: string; title: string; body: string };
 
@@ -135,7 +135,7 @@ export function startEventAlertScheduler() {
     const context = buildLogContext(
       'system',
       'event-alerts',
-      process.env.LOG_FILE_PATH ?? null,
+      process.env.LOG_FILE_PATH ?? DEFAULT_LOG_PATH,
       process.env.LOG_LEVEL ?? 'info'
     );
     if (context === null) {

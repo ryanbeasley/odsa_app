@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -23,38 +23,33 @@ export function SettingsScreen() {
   const isAdminView = auth.isViewingAsAdmin;
   const baseRoleLabel = canToggleAdmin ? 'Admin' : 'Member';
   const viewStatus = isAdminView ? 'Admin view' : 'Member view';
+  const viewDescription = isAdminView
+    ? 'You are seeing admin-only tools.'
+    : 'Viewing as a member to mirror their experience.';
   const [discordSyncing, setDiscordSyncing] = useState(false);
   const [discordSyncMessage, setDiscordSyncMessage] = useState<string | null>(null);
 
   /**
-   * Toggles announcement push notifications.
+   * Toggles announcement or event push notifications.
    */
-  const handleToggleNotifications = async () => {
+  const handleToggleNotifications = async (type: 'announcements' | 'events') => {
     if (push.loading) {
       return;
     }
     try {
       push.setError(null);
-      await push.toggleAnnouncements();
+      if (type === 'announcements') {
+        await push.toggleAnnouncements();
+      } else {
+        await push.toggleEventAlerts();
+      }
     } catch {
       // handled downstream
     }
   };
 
-  /**
-   * Toggles event alert push notifications.
-   */
-  const handleToggleEventNotifications = async () => {
-    if (push.loading) {
-      return;
-    }
-    try {
-      push.setError(null);
-      await push.toggleEventAlerts();
-    } catch {
-      // handled downstream
-    }
-  };
+  const getStatusText = (enabled: boolean) =>
+    push.loading ? '...' : enabled ? 'On' : 'Off';
 
   const handleDiscordSync = async () => {
     if (discordSyncing || !auth.token) {
@@ -77,7 +72,7 @@ export function SettingsScreen() {
       const data = (await response.json()) as { synced: number; skipped?: number };
       const skipped = data.skipped ?? 0;
       setDiscordSyncMessage(`Synced ${data.synced} events. Skipped ${skipped}.`);
-      void events.refresh();
+      events.refresh();
     } catch (error) {
       setDiscordSyncMessage(error instanceof Error ? error.message : 'Failed to sync Discord events');
     } finally {
@@ -114,65 +109,42 @@ export function SettingsScreen() {
                 <View style={styles.summaryIcon}>
                   <Feather name="eye" size={18} color={colors.text} />
                 </View>
-                <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryLabel}>Current view</Text>
-                  <Text style={styles.summaryValue}>
-                    {isAdminView
-                      ? 'You are seeing admin-only tools.'
-                      : 'Viewing as a member to mirror their experience.'}
-                  </Text>
-                </View>
-                <Text style={[styles.badge, !isAdminView && styles.badgeMuted]}>{viewStatus}</Text>
+              <View style={styles.summaryCopy}>
+                <Text style={styles.summaryLabel}>Current view</Text>
+                <Text style={styles.summaryValue}>{viewDescription}</Text>
               </View>
-            ) : null}
+              <Text style={[styles.badge, !isAdminView && styles.badgeMuted]}>{viewStatus}</Text>
+            </View>
+          ) : null}
           </View>
 
           <View style={styles.navPanel}>
-            <TouchableOpacity
-              style={styles.navItem}
+            <NavItem
+              icon="edit-3"
+              label="Update user information"
+              description="Update your contact info so organizers can reach you."
               onPress={() => router.push('/tabs/settings/profile')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.navItemContent}>
-                <Feather name="edit-3" size={18} color={colors.text} />
-                <View style={styles.navTextGroup}>
-                  <Text style={styles.navLabel}>Update user information</Text>
-                  <Text style={styles.navDescription}>Update your contact info so organizers can reach you.</Text>
-                </View>
-              </View>
-              <Feather name="chevron-right" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
+              right={<Feather name="chevron-right" size={18} color={colors.textMuted} />}
+            />
 
             {canToggleAdmin ? (
-              <TouchableOpacity style={styles.navItem} onPress={auth.toggleAdminMode} activeOpacity={0.8}>
-                <View style={styles.navItemContent}>
-                  <Feather name="refresh-cw" size={18} color={colors.text} />
-                  <View style={styles.navTextGroup}>
-                    <Text style={styles.navLabel}>Switch view</Text>
-                    <Text style={styles.navDescription}>
-                      {isAdminView ? 'Go to member view to preview their experience.' : 'Return to admin view.'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={[styles.statusBadge, !isAdminView && styles.statusBadgeMuted]}>{viewStatus}</Text>
-              </TouchableOpacity>
+              <NavItem
+                icon="refresh-cw"
+                label="Switch view"
+                description={isAdminView ? 'Go to member view to preview their experience.' : 'Return to admin view.'}
+                onPress={auth.toggleAdminMode}
+                right={<Text style={[styles.statusBadge, !isAdminView && styles.statusBadgeMuted]}>{viewStatus}</Text>}
+              />
             ) : null}
 
             {canToggleAdmin ? (
-              <TouchableOpacity
-                style={styles.navItem}
+              <NavItem
+                icon="users"
+                label="Users"
+                description="Review members and promote trusted organizers."
                 onPress={() => router.push('/tabs/settings/users')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.navItemContent}>
-                  <Feather name="users" size={18} color={colors.text} />
-                  <View style={styles.navTextGroup}>
-                    <Text style={styles.navLabel}>Users</Text>
-                    <Text style={styles.navDescription}>Review members and promote trusted organizers.</Text>
-                  </View>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
+                right={<Feather name="chevron-right" size={18} color={colors.textMuted} />}
+              />
             ) : null}
           </View>
         </SectionCard>
@@ -181,72 +153,19 @@ export function SettingsScreen() {
           <Text style={styles.sectionLabel}>Notifications</Text>
           <Text style={styles.sectionDescription}>Enable push alerts when new announcements are posted.</Text>
 
-          <View style={styles.navPanel}>
-            <TouchableOpacity style={styles.navItem} onPress={handleToggleNotifications} activeOpacity={0.8}>
-              <View style={styles.navItemContent}>
-                <Feather
-                  name={push.announcementEnabled ? 'check-square' : 'square'}
-                  size={18}
-                  color={colors.text}
-                />
-                <View style={styles.navTextGroup}>
-                  <Text style={styles.navLabel}>Announcement alerts</Text>
-                  <Text style={styles.navDescription}>
-                    {push.announcementEnabled
-                      ? 'You will get a push notification for new announcements.'
-                      : 'Stay informed when admins post updates.'}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.statusBadge, !push.announcementEnabled && styles.statusBadgeMuted]}>
-                {push.loading ? '...' : push.announcementEnabled ? 'On' : 'Off'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={handleToggleEventNotifications} activeOpacity={0.8}>
-              <View style={styles.navItemContent}>
-                <Feather
-                  name={push.eventEnabled ? 'check-square' : 'square'}
-                  size={18}
-                  color={colors.text}
-                />
-                <View style={styles.navTextGroup}>
-                  <Text style={styles.navLabel}>Event alerts</Text>
-                  <Text style={styles.navDescription}>
-                    Receive 24-hour and one-hour reminders for events you&apos;re attending.
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.statusBadge, !push.eventEnabled && styles.statusBadgeMuted]}>
-                {push.loading ? '...' : push.eventEnabled ? 'On' : 'Off'}
-              </Text>
-            </TouchableOpacity>
-            {push.error ? <Text style={styles.errorText}>{push.error}</Text> : null}
-          </View>
+          <NotificationsSection
+            push={push}
+            onToggle={handleToggleNotifications}
+            getStatusText={getStatusText}
+          />
         </SectionCard>
 
         {isAdminView ? (
-          <SectionCard style={styles.section}>
-            <Text style={styles.sectionLabel}>Admin tools</Text>
-            <Text style={styles.sectionDescription}>Sync external event sources.</Text>
-
-            <View style={styles.navPanel}>
-              <TouchableOpacity style={styles.navItem} onPress={handleDiscordSync} activeOpacity={0.8}>
-                <View style={styles.navItemContent}>
-                  <Feather name="repeat" size={18} color={colors.text} />
-                  <View style={styles.navTextGroup}>
-                    <Text style={styles.navLabel}>Sync Events From Discord</Text>
-                    <Text style={styles.navDescription}>
-                      Import scheduled events from the connected Discord server.
-                    </Text>
-                  </View>
-                </View>
-                <Text style={[styles.statusBadge, discordSyncing && styles.statusBadgeMuted]}>
-                  {discordSyncing ? 'Syncing...' : 'Run'}
-                </Text>
-              </TouchableOpacity>
-              {discordSyncMessage ? <Text style={styles.statusHint}>{discordSyncMessage}</Text> : null}
-            </View>
-          </SectionCard>
+          <AdminToolsSection
+            discordSyncing={discordSyncing}
+            discordSyncMessage={discordSyncMessage}
+            onSync={handleDiscordSync}
+          />
         ) : null}
 
         <SectionCard style={styles.section}>
@@ -265,5 +184,98 @@ export function SettingsScreen() {
         </SectionCard>
       </ScrollView>
     </View>
+  );
+}
+
+type NotificationsSectionProps = {
+  push: ReturnType<typeof useAppData>['push'];
+  onToggle: (type: 'announcements' | 'events') => void;
+  getStatusText: (enabled: boolean) => string;
+};
+
+function NotificationsSection({ push, onToggle, getStatusText }: NotificationsSectionProps) {
+  return (
+    <View style={styles.navPanel}>
+      <NavItem
+        icon={push.announcementEnabled ? 'check-square' : 'square'}
+        label="Announcement alerts"
+        description={
+          push.announcementEnabled
+            ? 'You will get a push notification for new announcements.'
+            : 'Stay informed when admins post updates.'
+        }
+        onPress={() => onToggle('announcements')}
+        right={
+          <Text style={[styles.statusBadge, !push.announcementEnabled && styles.statusBadgeMuted]}>
+            {getStatusText(push.announcementEnabled)}
+          </Text>
+        }
+      />
+      <NavItem
+        icon={push.eventEnabled ? 'check-square' : 'square'}
+        label="Event alerts"
+        description="Receive 24-hour and one-hour reminders for events you&apos;re attending."
+        onPress={() => onToggle('events')}
+        right={
+          <Text style={[styles.statusBadge, !push.eventEnabled && styles.statusBadgeMuted]}>
+            {getStatusText(push.eventEnabled)}
+          </Text>
+        }
+      />
+      {push.error ? <Text style={styles.errorText}>{push.error}</Text> : null}
+    </View>
+  );
+}
+
+type AdminToolsSectionProps = {
+  discordSyncing: boolean;
+  discordSyncMessage: string | null;
+  onSync: () => void;
+};
+
+function AdminToolsSection({ discordSyncing, discordSyncMessage, onSync }: AdminToolsSectionProps) {
+  return (
+    <SectionCard style={styles.section}>
+      <Text style={styles.sectionLabel}>Admin tools</Text>
+      <Text style={styles.sectionDescription}>Sync external event sources.</Text>
+
+      <View style={styles.navPanel}>
+        <NavItem
+          icon="repeat"
+          label="Sync Events From Discord"
+          description="Import scheduled events from the connected Discord server."
+          onPress={onSync}
+          right={
+            <Text style={[styles.statusBadge, discordSyncing && styles.statusBadgeMuted]}>
+              {discordSyncing ? 'Syncing...' : 'Run'}
+            </Text>
+          }
+        />
+        {discordSyncMessage ? <Text style={styles.statusHint}>{discordSyncMessage}</Text> : null}
+      </View>
+    </SectionCard>
+  );
+}
+
+type NavItemProps = {
+  icon: keyof typeof Feather.glyphMap;
+  label: string;
+  description?: string;
+  onPress: () => void;
+  right?: ReactNode;
+};
+
+function NavItem({ icon, label, description, onPress, right }: NavItemProps) {
+  return (
+    <TouchableOpacity style={styles.navItem} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.navItemContent}>
+        <Feather name={icon} size={18} color={colors.text} />
+        <View style={styles.navTextGroup}>
+          <Text style={styles.navLabel}>{label}</Text>
+          {description ? <Text style={styles.navDescription}>{description}</Text> : null}
+        </View>
+      </View>
+      {right ?? <Feather name="chevron-right" size={18} color={colors.textMuted} />}
+    </TouchableOpacity>
   );
 }

@@ -52,75 +52,17 @@ export async function syncDiscordEvents() {
   console.log('Starting sync for guild', DISCORD_GUILD_ID);
   const events = await fetchDiscordEvents();
   console.log('Fetched', events.length, 'scheduled events');
-  let createdOrUpdated = 0;
-  let skipped = 0;
-  for (const event of events) {
-    console.log('Processing event', {
-      id: event.id,
-      name: event.name,
-      description: event.description ?? null,
-      start: event.scheduled_start_time,
-      end: event.scheduled_end_time ?? null,
-      entityType: event.entity_type,
-      location: event.entity_metadata?.location ?? null,
-      channelId: event.channel_id ?? null,
-    });
-    if (!event.scheduled_start_time) {
-      console.log('Skipping event without start time', event.id);
-      skipped += 1;
-      continue;
-    }
-    const startAt = new Date(event.scheduled_start_time);
-    if (Number.isNaN(startAt.getTime())) {
-      console.log('Skipping event with invalid start time', event.id);
-      skipped += 1;
-      continue;
-    }
-    const parsedDescription = parseDescription(event.description);
-    const workingGroupId = resolveWorkingGroupId(parsedDescription.workingGroupName);
-    if (!workingGroupId) {
-      console.log('Skipping event without matching working group', event.id, parsedDescription.workingGroupName ?? '');
-      skipped += 1;
-      continue;
-    }
-    if (event.recurrence_rule && !isSupportedRecurrenceRule(event.recurrence_rule)) {
-      console.warn('Skipping event with unsupported recurrence rule', {
-        id: event.id,
-        name: event.name,
-        recurrenceRule: event.recurrence_rule,
-      });
-      skipped += 1;
-      continue;
-    }
-    const endAt = event.scheduled_end_time ? new Date(event.scheduled_end_time) : new Date(startAt.getTime() + DEFAULT_DURATION_MS);
-    const locationDetails = buildLocationDetails(event);
-    if (event.recurrence_rule && mapDiscordRecurrence(event.recurrence_rule)) {
-      const result = upsertDiscordSeriesEvent({
-        event,
-        workingGroupId,
-        description: parsedDescription.cleaned || 'Discord event',
-        location: locationDetails.link,
-        locationDisplayName: locationDetails.displayName,
-      });
-      createdOrUpdated += result;
-      continue;
-    }
-    const thisEvent = {
-      discordEventId: event.id,
-      name: event.name.trim(),
-      description: parsedDescription.cleaned || 'Discord event',
-      workingGroupId,
-      startAt: startAt.toISOString(),
-      endAt: endAt.toISOString(),
-      location: locationDetails.link,
-      locationDisplayName: locationDetails.displayName,
-      recurrenceRule: event.recurrence_rule ? JSON.stringify(event.recurrence_rule) : null,
-    };
-    upsertDiscordEvent(thisEvent);
-    console.debug('Upserted single event from Discord:', thisEvent);
-    createdOrUpdated += 1;
-  }
+  const totals = events.reduce(
+    (acc, event) => {
+      const outcome = processDiscordEvent(event);
+      acc.createdOrUpdated += outcome.created;
+      acc.skipped += outcome.skipped;
+      return acc;
+    },
+    { createdOrUpdated: 0, skipped: 0 }
+  );
 
+  const { createdOrUpdated, skipped } = totals;
   console.log('Sync complete', { createdOrUpdated, skipped });
   return { count: createdOrUpdated, skipped };
 }
@@ -177,6 +119,114 @@ async function fetchDiscordEvents(): Promise<DiscordScheduledEvent[]> {
   return (await response.json()) as DiscordScheduledEvent[];
 }
 
+function processDiscordEvent(event: DiscordScheduledEvent) {
+  logEventSummary(event);
+
+  const startAt = getValidStart(event);
+  if (!startAt) {
+    return { created: 0, skipped: 1 };
+  }
+
+  const parsedDescription = parseDescription(event.description);
+  const workingGroupId = resolveWorkingGroupId(parsedDescription.workingGroupName);
+  if (!workingGroupId) {
+    console.log('Skipping event without matching working group', event.id, parsedDescription.workingGroupName ?? '');
+    return { created: 0, skipped: 1 };
+  }
+
+  if (event.recurrence_rule && !isSupportedRecurrenceRule(event.recurrence_rule)) {
+    console.warn('Skipping event with unsupported recurrence rule', {
+      id: event.id,
+      name: event.name,
+      recurrenceRule: event.recurrence_rule,
+    });
+    return { created: 0, skipped: 1 };
+  }
+
+  const endAt = buildEndAt(event, startAt);
+  const locationDetails = buildLocationDetails(event);
+  const recurrenceType = event.recurrence_rule ? mapDiscordRecurrence(event.recurrence_rule) : null;
+
+  if (event.recurrence_rule && recurrenceType) {
+    const created = upsertDiscordSeriesEvent({
+      event,
+      workingGroupId,
+      description: parsedDescription.cleaned || 'Discord event',
+      location: locationDetails.link,
+      locationDisplayName: locationDetails.displayName,
+    });
+    return { created, skipped: 0 };
+  }
+
+  const thisEvent = buildSingleEventPayload(event, {
+    workingGroupId,
+    startAt,
+    endAt,
+    description: parsedDescription.cleaned,
+    locationDetails,
+  });
+  upsertDiscordEvent(thisEvent);
+  console.debug('Upserted single event from Discord:', thisEvent);
+  return { created: 1, skipped: 0 };
+}
+
+function logEventSummary(event: DiscordScheduledEvent) {
+  console.log('Processing event', {
+    id: event.id,
+    name: event.name,
+    description: event.description ?? null,
+    start: event.scheduled_start_time,
+    end: event.scheduled_end_time ?? null,
+    entityType: event.entity_type,
+    location: event.entity_metadata?.location ?? null,
+    channelId: event.channel_id ?? null,
+  });
+}
+
+function getValidStart(event: DiscordScheduledEvent) {
+  if (!event.scheduled_start_time) {
+    console.log('Skipping event without start time', event.id);
+    return null;
+  }
+  const startAt = new Date(event.scheduled_start_time);
+  if (Number.isNaN(startAt.getTime())) {
+    console.log('Skipping event with invalid start time', event.id);
+    return null;
+  }
+  return startAt;
+}
+
+function buildEndAt(event: DiscordScheduledEvent, startAt: Date) {
+  return event.scheduled_end_time ? new Date(event.scheduled_end_time) : new Date(startAt.getTime() + DEFAULT_DURATION_MS);
+}
+
+function buildSingleEventPayload(
+  event: DiscordScheduledEvent,
+  params: {
+    workingGroupId: number;
+    startAt: Date;
+    endAt: Date;
+    description: string;
+    locationDetails: { link: string; displayName: string | null };
+  }
+) {
+  const { workingGroupId, startAt, endAt, description, locationDetails } = params;
+  return {
+    discordEventId: event.id,
+    name: event.name.trim(),
+    description: description || 'Discord event',
+    workingGroupId,
+    startAt: startAt.toISOString(),
+    endAt: endAt.toISOString(),
+    location: locationDetails.link,
+    locationDisplayName: locationDetails.displayName,
+    recurrenceRule: event.recurrence_rule ? JSON.stringify(event.recurrence_rule) : null,
+  };
+}
+
+/**
+ * Creates location url links and display names based on Discord event entity type.
+ */
 function buildLocationDetails(event: DiscordScheduledEvent) {
   if (event.entity_type === DiscordEntityType.EXTERNAL) {
     const rawLocation = event.entity_metadata?.location?.trim() ?? 'Discord event';
@@ -194,6 +244,9 @@ function buildLocationDetails(event: DiscordScheduledEvent) {
   return { link, displayName };
 }
 
+/**
+ * builds a discord event payload from an internal event record.
+ */
 function buildDiscordEventPayload(event: EventRow) {
   const location = (event.location_display_name ?? event.location ?? 'TBD').trim();
   const groupName = event.working_group_id ? findWorkingGroupById(event.working_group_id)?.name ?? null : null;
@@ -216,12 +269,18 @@ function buildDiscordEventPayload(event: EventRow) {
   return payload;
 }
 
+/**
+ * Ensures that Discord configuration is present.
+ */
 function ensureDiscordConfigured() {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) {
     throw new Error('Discord is not configured on the server.');
   }
 }
 
+/**
+ * Upserts a Discord series event and its occurrences into the local database.
+ */
 function upsertDiscordSeriesEvent(params: {
   event: DiscordScheduledEvent;
   workingGroupId: number;
@@ -247,7 +306,7 @@ function upsertDiscordSeriesEvent(params: {
     deleteEventById(existing.id);
   }
   const seriesUuid = randomUUID();
-  const seriesEndAt = occurrences[occurrences.length - 1].endAt.toISOString();
+  const seriesEndAt = occurrences.at(occurrences.length - 1)?.endAt.toISOString() ?? null;
   const recurrenceRuleJson = event.recurrence_rule ? JSON.stringify(event.recurrence_rule) : null;
   occurrences.forEach((occ, index) => {
     const created = createEvent(
@@ -269,6 +328,9 @@ function upsertDiscordSeriesEvent(params: {
   return occurrences.length;
 }
 
+/**
+ * Maps Discord recurrence rule to internal recurrence string.
+ */
 function mapDiscordRecurrence(rule?: DiscordRecurrenceRule | null) {
   if (!rule) {
     return null;
@@ -285,6 +347,9 @@ function mapDiscordRecurrence(rule?: DiscordRecurrenceRule | null) {
   return null;
 }
 
+/**
+ * Determines if a recurrence rule is supported.
+ */
 function isSupportedRecurrenceRule(rule: DiscordRecurrenceRule) {
   if (!rule.frequency) {
     return false;
@@ -322,6 +387,9 @@ function isSupportedRecurrenceRule(rule: DiscordRecurrenceRule) {
   return false;
 }
 
+/**
+ * Builds all occurrences for a recurring Discord event.
+ */
 function buildSeriesOccurrences(event: DiscordScheduledEvent) {
   console.logEnter();
   const rule = event.recurrence_rule;
@@ -339,75 +407,132 @@ function buildSeriesOccurrences(event: DiscordScheduledEvent) {
   if (Number.isNaN(start.getTime())) {
     return [];
   }
-  const baseEnd = event.scheduled_end_time ? new Date(event.scheduled_end_time) : null;
-  const durationMs = baseEnd && !Number.isNaN(baseEnd.getTime()) ? baseEnd.getTime() - new Date(event.scheduled_start_time).getTime() : DEFAULT_DURATION_MS;
+  const durationMs = getEventDurationMs(event);
   const endLimit = rule.end ? new Date(rule.end) : new Date(start.getTime() + 365 * 24 * 60 * 60 * 1000);
   if (Number.isNaN(endLimit.getTime())) {
     return [];
   }
   const interval = Math.max(1, rule.interval ?? 1);
-  const occurrences: Array<{ startAt: Date; endAt: Date }> = [];
-
   if (recurrence === 'daily') {
-    let cursor = new Date(start);
-    while (cursor <= endLimit) {
-      if (!rule.by_weekday || rule.by_weekday.includes(mapDiscordWeekday(cursor))) {
-        occurrences.push(buildOccurrence(cursor, new Date(cursor.getTime() + durationMs)));
-      }
-      cursor = new Date(cursor.getTime() + interval * 24 * 60 * 60 * 1000);
-    }
-    return occurrences;
+    return buildDailyOccurrences(start, endLimit, interval, durationMs, rule);
   }
-
   if (recurrence === 'weekly') {
-    const weekdays = (rule.by_weekday && rule.by_weekday.length ? rule.by_weekday : [mapDiscordWeekday(start)]).slice().sort((a, b) => a - b);
-    let cursor = startOfWeek(start);
-    let weekIndex = 0;
-    while (cursor <= endLimit) {
-      if (weekIndex % interval === 0) {
-        for (const day of weekdays) {
-          const jsDay = discordWeekdayToJs(day);
-          const offset = (jsDay + 6) % 7;
-          const date = addDays(cursor, offset);
-          if (date < start || date > endLimit) {
-            continue;
-          }
-          occurrences.push(buildOccurrence(date, new Date(date.getTime() + durationMs)));
-        }
-      }
-      cursor = addDays(cursor, 7);
-      weekIndex += 1;
-    }
-    return occurrences;
+    return buildWeeklyOccurrences(start, endLimit, interval, durationMs, rule);
   }
-
   if (recurrence === 'monthly') {
-    const months = rule.by_month && rule.by_month.length ? rule.by_month : null;
-    let cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()));
-    let monthIndex = 0;
-    while (cursor <= endLimit) {
-      const monthNumber = cursor.getUTCMonth() + 1;
-      if ((!months || months.includes(monthNumber)) && monthIndex % interval === 0) {
-        const monthOccurrences = buildMonthlyOccurrences(cursor, start, rule, durationMs);
-        monthOccurrences.forEach((occ) => {
-          if (occ.startAt >= start && occ.startAt <= endLimit) {
-            occurrences.push(occ);
-          }
-        });
-      }
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()));
-      monthIndex += 1;
-    }
-    return occurrences;
+    return buildMonthlySeries(start, endLimit, interval, durationMs, rule);
   }
 
-  return occurrences;
+  return [];
 }
 
+/**
+ * Builds an occurrence object.
+ */
 function buildOccurrence(startAt: Date, endAt: Date) {
   return { startAt, endAt };
 }
 
+function getEventDurationMs(event: DiscordScheduledEvent) {
+  const baseEnd = event.scheduled_end_time ? new Date(event.scheduled_end_time) : null;
+  if (baseEnd && !Number.isNaN(baseEnd.getTime())) {
+    return baseEnd.getTime() - new Date(event.scheduled_start_time).getTime();
+  }
+  return DEFAULT_DURATION_MS;
+}
+
+/**
+ * Builds daily occurrences with optional weekday filtering.
+ */
+function buildDailyOccurrences(
+  start: Date,
+  endLimit: Date,
+  interval: number,
+  durationMs: number,
+  rule: DiscordRecurrenceRule
+) {
+  const occurrences: Array<{ startAt: Date; endAt: Date }> = [];
+  let cursor = new Date(start);
+  while (cursor <= endLimit) {
+    if (!rule.by_weekday || rule.by_weekday.includes(mapDiscordWeekday(cursor))) {
+      occurrences.push(buildOccurrence(cursor, new Date(cursor.getTime() + durationMs)));
+    }
+    cursor = new Date(cursor.getTime() + interval * 24 * 60 * 60 * 1000);
+  }
+  return occurrences;
+}
+
+/**
+ * Maps a JavaScript Date to a Discord weekday number.
+ */
+function buildWeeklyOccurrences(
+  start: Date,
+  endLimit: Date,
+  interval: number,
+  durationMs: number,
+  rule: DiscordRecurrenceRule
+) {
+  const occurrences: Array<{ startAt: Date; endAt: Date }> = [];
+  const weekdays = (rule.by_weekday && rule.by_weekday.length ? rule.by_weekday : [mapDiscordWeekday(start)])
+    .slice()
+    .sort((a, b) => a - b);
+  let cursor = startOfWeek(start);
+  let weekIndex = 0;
+  while (cursor <= endLimit) {
+    if (weekIndex % interval === 0) {
+      for (const day of weekdays) {
+        const jsDay = discordWeekdayToJs(day);
+        const offset = (jsDay + 6) % 7;
+        const date = addDays(cursor, offset);
+        if (date < start || date > endLimit) {
+          continue;
+        }
+        occurrences.push(buildOccurrence(date, new Date(date.getTime() + durationMs)));
+      }
+    }
+    cursor = addDays(cursor, 7);
+    weekIndex += 1;
+  }
+  return occurrences;
+}
+
+/**
+ * Builds monthly occurrences based on the recurrence rule.
+ */
+function buildMonthlySeries(
+  start: Date,
+  endLimit: Date,
+  interval: number,
+  durationMs: number,
+  rule: DiscordRecurrenceRule
+) {
+  const occurrences: Array<{ startAt: Date; endAt: Date }> = [];
+  const months = rule.by_month && rule.by_month.length ? rule.by_month : null;
+  let cursor = new Date(
+    Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds())
+  );
+  let monthIndex = 0;
+  while (cursor <= endLimit) {
+    const monthNumber = cursor.getUTCMonth() + 1;
+    if ((!months || months.includes(monthNumber)) && monthIndex % interval === 0) {
+      const monthOccurrences = buildMonthlyOccurrences(cursor, start, rule, durationMs);
+      monthOccurrences.forEach((occ) => {
+        if (occ.startAt >= start && occ.startAt <= endLimit) {
+          occurrences.push(occ);
+        }
+      });
+    }
+    cursor = new Date(
+      Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1, start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds())
+    );
+    monthIndex += 1;
+  }
+  return occurrences;
+}
+
+/**
+ * Calculates the start of the week (Monday) for a given date.
+ */
 function startOfWeek(date: Date) {
   const day = date.getUTCDay();
   const diff = (day + 6) % 7;
@@ -423,12 +548,18 @@ function startOfWeek(date: Date) {
   );
 }
 
+/**
+ * Adds days to a date and returns a new date object.
+ */
 function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setUTCDate(next.getUTCDate() + days);
   return next;
 }
 
+/**
+ * Converts Discord weekday to JavaScript weekday.
+ */
 function discordWeekdayToJs(day: number) {
   if (day === DiscordWeekday.SUNDAY) {
     return 0;
@@ -436,6 +567,9 @@ function discordWeekdayToJs(day: number) {
   return day + 1;
 }
 
+/**
+ * Builds occurrences for monthly recurrence rules.
+ */
 function buildMonthlyOccurrences(baseMonth: Date, start: Date, rule: DiscordRecurrenceRule, durationMs: number) {
   if (rule.by_n_weekday && rule.by_n_weekday.length) {
     return rule.by_n_weekday
@@ -460,6 +594,9 @@ function buildMonthlyOccurrences(baseMonth: Date, start: Date, rule: DiscordRecu
     .filter((occ): occ is { startAt: Date; endAt: Date } => Boolean(occ));
 }
 
+/**
+ * Calculates the nth weekday of the month for a given base month.
+ */
 function nthWeekdayOfMonth(baseMonth: Date, weekday: number, n: number) {
   if (n < 1 || n > 5) {
     return null;
@@ -479,6 +616,9 @@ function nthWeekdayOfMonth(baseMonth: Date, weekday: number, n: number) {
   return date;
 }
 
+/**
+ * Parses a stored recurrence rule JSON string.
+ */
 function parseStoredRecurrenceRule(value: string | null): DiscordRecurrenceRule | null {
   if (!value) {
     return null;
@@ -490,6 +630,9 @@ function parseStoredRecurrenceRule(value: string | null): DiscordRecurrenceRule 
   }
 }
 
+/**
+ * Maps a Date to a Discord weekday.
+ */
 function mapDiscordWeekday(date: Date) {
   const day = date.getUTCDay();
   if (day === 0) {
@@ -498,6 +641,9 @@ function mapDiscordWeekday(date: Date) {
   return day - 1;
 }
 
+/**
+ * Parses the description to extract working group tag and cleaned description.
+ */
 function parseDescription(description?: string | null) {
   if (!description) {
     return { workingGroupName: null, cleaned: '' };
@@ -515,6 +661,9 @@ function parseDescription(description?: string | null) {
   return { workingGroupName, cleaned: filtered.join('\n').trim() };
 }
 
+/**
+ * Resolves working group ID from name.
+ */
 function resolveWorkingGroupId(name: string | null) {
   console.log('Resolving working group', {
     requestedName: name,
@@ -532,6 +681,9 @@ function resolveWorkingGroupId(name: string | null) {
   return null;
 }
 
+/**
+ * Determines if a link is an HTTP or HTTPS URL.
+ */
 function isHttpLink(value: string) {
   try {
     const parsed = new URL(value);

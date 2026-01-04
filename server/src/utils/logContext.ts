@@ -57,8 +57,8 @@ export function getLogContext(level: LogLevel = LogLevel.INFO): LogContext | nul
 export function buildLogContext(
   userId: string,
   sessionId: string,
-  logPath: string | null = null,
-  logLevel: string
+  logPath: string,
+  logLevel: string = 'info'
 ): LogContext | null {
   if (isLogSilenced()) {
     return null;
@@ -70,7 +70,7 @@ export function buildLogContext(
 
 export function buildLogContextFromRequest(
   request: Request,
-  logPath: string | null = null,
+  logPath: string,
   logLevel: string = 'info'
 ): LogContext | null {
   if (isLogSilenced()) {
@@ -132,7 +132,7 @@ function hashRequest(request: Request) {
   });
   let hash = 5381;
   for (let i = 0; i < payload.length; i += 1) {
-    hash = (hash * 33) ^ payload.charCodeAt(i);
+    hash = (hash * 33) ^ (payload.codePointAt(i) ?? 1);
   }
   return (hash >>> 0).toString(36);
 }

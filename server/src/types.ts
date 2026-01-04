@@ -57,6 +57,39 @@ export type EventRow = {
   created_at: string;
 };
 
+export type EventPayload = {
+  name: string;
+  description: string;
+  workingGroupId: number;
+  startAt: string;
+  endAt: string;
+  location: string;
+  locationDisplayName?: string | null;
+  createDiscordEvent?: boolean;
+  recurrenceRule?: {
+    frequency?: number;
+    interval?: number | null;
+    by_weekday?: number[] | null;
+    by_n_weekday?: Array<{ n: number; day: number }> | null;
+    by_month_day?: number[] | null;
+  } | null;
+  seriesEndAt?: string | null;
+};
+
+export type NormalizedRecurrence = {
+  recurrence: RecurrenceRule;
+  monthlyPattern: MonthlyPattern;
+  rule: {
+    start: string;
+    frequency: number;
+    interval?: number | null;
+    by_weekday?: number[] | null;
+    by_n_weekday?: Array<{ n: number; day: number }> | null;
+    by_month_day?: number[] | null;
+  } | null;
+  dailyWeekdays: number[] | null;
+};
+
 export type EventAttendeeRow = {
   user_id: number;
   event_id: number;
