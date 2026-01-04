@@ -62,7 +62,7 @@ export function SettingsScreen() {
     try {
       setSmsSaving(true);
       setSmsError(null);
-      await auth.updateProfile({ eventAlertsSmsEnabled: !accountUser.eventAlertsSmsEnabled });
+      await auth.updateSmsSubscription(!accountUser.eventAlertsSmsEnabled);
     } catch (error) {
       setSmsError(error instanceof Error ? error.message : 'Failed to update SMS alerts');
     } finally {

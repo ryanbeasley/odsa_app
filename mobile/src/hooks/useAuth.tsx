@@ -41,6 +41,7 @@ type AuthContextValue = {
   toggleAdminMode: () => void;
   googleSignIn: () => Promise<void>;
   updateProfile: (payload: ProfilePayload) => Promise<void>;
+  updateSmsSubscription: (enabled: boolean) => Promise<void>;
   setAuthError: (value: string | null) => void;
 };
 
@@ -299,6 +300,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void persistSession(data.token, data.user);
   };
 
+  /**
+   * Updates the user's SMS event alert preference.
+   */
+  const updateSmsSubscription = async (enabled: boolean) => {
+    if (!token) {
+      throw new Error('You must be signed in to manage SMS alerts.');
+    }
+    const response = await fetch(`${SERVER_URL}/api/sms-subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ eventAlertsSmsEnabled: enabled }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body?.error ?? 'Failed to update SMS alerts');
+    }
+    const data = (await response.json()) as AuthResponse;
+    setToken(data.token);
+    setSessionUser(data.user);
+    setViewAsMember(false);
+    void persistSession(data.token, data.user);
+  };
+
   const effectiveUser: User | null = (() => {
     if (!sessionUser) {
       return null;
@@ -325,6 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toggleAdminMode,
       googleSignIn,
       updateProfile,
+      updateSmsSubscription,
       setAuthError,
     }),
     [
@@ -340,6 +368,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toggleAdminMode,
       googleSignIn,
       updateProfile,
+      updateSmsSubscription,
+      setAuthError,
     ]
   );
 

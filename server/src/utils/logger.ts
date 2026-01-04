@@ -62,14 +62,7 @@ export function initLogging() {
   };
 
   console.logRequest = (req: Request) => {
-    const { method, url, headers } = req;
-    console.log('REQUEST', {
-      method,
-      url,
-      headers: Object.fromEntries(
-        Object.entries(headers).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : value])
-      ),
-    });
+    console.log('REQUEST', req);
   }
 }
 

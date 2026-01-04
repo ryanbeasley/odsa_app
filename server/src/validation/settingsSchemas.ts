@@ -7,6 +7,10 @@ export type PushSubscriptionPayload = {
   eventAlertsEnabled?: boolean;
 };
 
+export type SmsPushSubscriptionPayload = {
+  eventAlertsSmsEnabled: boolean;
+};
+
 export const pushSubscriptionSchema: Schema<PushSubscriptionPayload> = {
   parse(input: unknown) {
     const { token, announcementAlertsEnabled, eventAlertsEnabled } = (input ?? {}) as Record<string, unknown>;
@@ -24,6 +28,16 @@ export const pushSubscriptionSchema: Schema<PushSubscriptionPayload> = {
       announcementAlertsEnabled: announcementAlertsEnabled as boolean | undefined,
       eventAlertsEnabled: eventAlertsEnabled as boolean | undefined,
     };
+  },
+};
+
+export const smsPushSubscriptionSchema: Schema<SmsPushSubscriptionPayload> = {
+  parse(input: unknown) {
+    const { eventAlertsSmsEnabled } = (input ?? {}) as Record<string, unknown>;
+    if (typeof eventAlertsSmsEnabled !== 'boolean') {
+      throw new ValidationError('eventAlertsSmsEnabled must be a boolean');
+    }
+    return { eventAlertsSmsEnabled };
   },
 };
 

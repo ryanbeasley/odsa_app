@@ -1,9 +1,10 @@
 import { RouteDefinition } from './types';
 import { profileUpdateSchema } from '../validation/userSchemas';
-import { pushSubscriptionSchema, userRoleSchema } from '../validation/settingsSchemas';
+import { pushSubscriptionSchema, smsPushSubscriptionSchema, userRoleSchema } from '../validation/settingsSchemas';
 import { userIdParamSchema, userListQuerySchema } from '../validation/settingsParamsSchemas';
 import {
   updateProfileHandler,
+  upsertSmsSubscriptionHandler,
   upsertPushSubscriptionHandler,
   getPushSubscriptionHandler,
   deletePushSubscriptionHandler,
@@ -14,6 +15,12 @@ import {
 
 export const settingsRoutes: RouteDefinition[] = [
   { method: 'PATCH', path: '/profile', handler: updateProfileHandler, schema: profileUpdateSchema },
+  {
+    method: 'POST',
+    path: '/sms-subscriptions',
+    handler: upsertSmsSubscriptionHandler,
+    schema: smsPushSubscriptionSchema,
+  },
   {
     method: 'POST',
     path: '/push-subscriptions',

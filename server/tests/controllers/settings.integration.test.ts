@@ -97,6 +97,24 @@ describe('settingsController integration', () => {
     expect(readAfter.body.subscription).toBeNull();
   });
 
+  it('updates SMS event alerts preference for a user', async () => {
+    const enable = await request(app)
+      .post('/api/sms-subscriptions')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ eventAlertsSmsEnabled: true });
+
+    expect(enable.status).toBe(200);
+    expect(enable.body.user.eventAlertsSmsEnabled).toBe(true);
+
+    const disable = await request(app)
+      .post('/api/sms-subscriptions')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ eventAlertsSmsEnabled: false });
+
+    expect(disable.status).toBe(200);
+    expect(disable.body.user.eventAlertsSmsEnabled).toBe(false);
+  });
+
   it('returns 404 when web push public key is not configured', async () => {
     const response = await request(app)
       .get('/api/web-push/public-key')

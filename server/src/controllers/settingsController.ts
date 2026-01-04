@@ -10,7 +10,7 @@ import { serializePushSubscription, toPublicUser } from '../utils/serializer';
 import { signToken } from '../utils/jwt';
 import { syncDiscordEvents } from '../services/discordService';
 import { ProfileUpdates } from '../validation/userSchemas';
-import { PushSubscriptionPayload, UserRolePayload } from '../validation/settingsSchemas';
+import { PushSubscriptionPayload, SmsPushSubscriptionPayload, UserRolePayload } from '../validation/settingsSchemas';
 import { UserIdParamPayload, UserListQueryPayload } from '../validation/settingsParamsSchemas';
 import { RequestUser } from '../middleware/authenticate';
 import { UserRow } from '../types';
@@ -40,6 +40,22 @@ export const updateProfileHandler: RequestHandler = (req: AuthedRequest, res) =>
   const token = signToken(updated);
   return res.json({ token, user: toPublicUser(updated) });
 };
+
+/**
+ * Registers or updates the SMS subscription for the current user.
+ */
+export const upsertSmsSubscriptionHandler: RequestHandler = (req: AuthedRequest, res) => {
+  const user = req.user as RequestUser;
+  const { eventAlertsSmsEnabled } = req.validated as SmsPushSubscriptionPayload;
+  const updated = updateUserProfile(user.id, {
+    event_alerts_sms_enabled: eventAlertsSmsEnabled ? 1 : 0,
+  });
+  if (!updated) {
+    throw new Error('Failed to update user SMS subscription');
+  }
+  const token = signToken(updated);
+  return res.json({ token, user: toPublicUser(updated) });
+}
 
 /**
  * Registers or updates the Expo push subscription for the current user.
