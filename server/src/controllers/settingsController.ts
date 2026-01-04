@@ -154,44 +154,58 @@ function buildProfileUpdates(body: unknown, currentEmail: string): ProfileUpdate
   const { firstName, lastName, phone, email } = (body ?? {}) as Record<string, unknown>;
   const updates: ProfileUpdates = {};
 
-  const first = readOptionalString(firstName);
-  if (first === null) {
-    return { error: 'First name must be a string', status: 400 };
-  }
-  if (first.value !== undefined) {
-    updates.first_name = first.value;
+  const assignOptionalField = (
+    label: string,
+    input: unknown,
+    apply: (value: string | null) => void
+  ): ProfileUpdateResult | null => {
+    const parsed = readOptionalString(input);
+    if (parsed === null) {
+      return { error: `${label} must be a string`, status: 400 };
+    }
+    if (parsed.value !== undefined) {
+      apply(parsed.value);
+    }
+    return null;
+  };
+
+  const firstError = assignOptionalField('First name', firstName, (value) => {
+    updates.first_name = value;
+  });
+  if (firstError) {
+    return firstError;
   }
 
-  const last = readOptionalString(lastName);
-  if (last === null) {
-    return { error: 'Last name must be a string', status: 400 };
-  }
-  if (last.value !== undefined) {
-    updates.last_name = last.value;
-  }
-
-  const phoneField = readOptionalString(phone);
-  if (phoneField === null) {
-    return { error: 'Phone must be a string', status: 400 };
-  }
-  if (phoneField.value !== undefined) {
-    updates.phone = phoneField.value;
+  const lastError = assignOptionalField('Last name', lastName, (value) => {
+    updates.last_name = value;
+  });
+  if (lastError) {
+    return lastError;
   }
 
-  if (email !== undefined) {
-    if (email !== null && typeof email !== 'string') {
-      return { error: 'Email must be a string', status: 400 };
-    }
-    const normalizedEmail = email?.trim().toLowerCase() ?? null;
-    if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return { error: 'Email is invalid', status: 400 };
-    }
-    if (normalizedEmail && normalizedEmail !== currentEmail && findUserByEmail(normalizedEmail)) {
-      return { error: 'Email already registered', status: 409 };
-    }
-    if (normalizedEmail) {
-      updates.email = normalizedEmail;
-    }
+  const phoneError = assignOptionalField('Phone', phone, (value) => {
+    updates.phone = value;
+  });
+  if (phoneError) {
+    return phoneError;
+  }
+
+  if (email === undefined) {
+    return { updates };
+  }
+
+  if (email !== null && typeof email !== 'string') {
+    return { error: 'Email must be a string', status: 400 };
+  }
+  const normalizedEmail = email?.trim().toLowerCase() ?? null;
+  if (normalizedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return { error: 'Email is invalid', status: 400 };
+  }
+  if (normalizedEmail && normalizedEmail !== currentEmail && findUserByEmail(normalizedEmail)) {
+    return { error: 'Email already registered', status: 409 };
+  }
+  if (normalizedEmail) {
+    updates.email = normalizedEmail;
   }
 
   return { updates };

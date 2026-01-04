@@ -246,6 +246,19 @@ export function useEvents(token: string | null) {
         return evt;
       };
 
+      /**
+       * Finds the series UUID for the target event.
+       */
+      const findTargetSeries = (list: Event[]) => {
+        const direct = list.find((evt) => evt.id === eventId)?.seriesUuid;
+        if (direct) {
+          return direct;
+        }
+        return (
+          list.find((evt) => evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId))?.seriesUuid ?? null
+        );
+      };
+
       try {
         setSaving(true);
         setError(null);
@@ -261,10 +274,7 @@ export function useEvents(token: string | null) {
           throw new Error(await parseError(response));
         }
         setEvents((prev) => {
-          const targetSeries =
-            prev.find((evt) => evt.id === eventId)?.seriesUuid ??
-            prev.find((evt) => evt.upcomingOccurrences?.some((occ) => occ.eventId === eventId))?.seriesUuid ??
-            null;
+          const targetSeries = findTargetSeries(prev);
           return prev.map((evt) => applyAttendanceUpdate(evt, targetSeries));
         });
       } catch (err) {

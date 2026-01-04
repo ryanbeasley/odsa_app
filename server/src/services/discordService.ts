@@ -358,33 +358,31 @@ function isSupportedRecurrenceRule(rule: DiscordRecurrenceRule) {
   if (interval !== 1) {
     return false;
   }
-  if (rule.frequency === DiscordRecurrenceFrequency.DAILY) {
-    return !rule.by_weekday?.length && !rule.by_month?.length && !rule.by_month_day?.length && !rule.by_n_weekday?.length;
+  const hasMonth = Boolean(rule.by_month?.length);
+  const hasWeekday = Boolean(rule.by_weekday?.length);
+  const hasMonthDay = Boolean(rule.by_month_day?.length);
+  const hasNthWeekday = Boolean(rule.by_n_weekday?.length);
+  if (hasMonth) {
+    return false;
   }
-  if (rule.frequency === DiscordRecurrenceFrequency.WEEKLY) {
-    if (rule.by_weekday && rule.by_weekday.length > 1) {
+
+  const hasSingleWeekday = !hasWeekday || rule.by_weekday?.length === 1;
+  const hasSingleMonthDay = !hasMonthDay || rule.by_month_day?.length === 1;
+  const hasSingleNthWeekday = !hasNthWeekday || rule.by_n_weekday?.length === 1;
+
+  switch (rule.frequency) {
+    case DiscordRecurrenceFrequency.DAILY:
+      return !hasWeekday && !hasMonthDay && !hasNthWeekday;
+    case DiscordRecurrenceFrequency.WEEKLY:
+      return hasSingleWeekday && !hasMonthDay && !hasNthWeekday;
+    case DiscordRecurrenceFrequency.MONTHLY:
+      if (!hasSingleMonthDay || !hasSingleNthWeekday || hasWeekday) {
+        return false;
+      }
+      return hasNthWeekday !== hasMonthDay;
+    default:
       return false;
-    }
-    return !rule.by_month?.length && !rule.by_month_day?.length && !rule.by_n_weekday?.length;
   }
-  if (rule.frequency === DiscordRecurrenceFrequency.MONTHLY) {
-    if (rule.by_month?.length) {
-      return false;
-    }
-    if (rule.by_weekday?.length) {
-      return false;
-    }
-    if (rule.by_n_weekday && rule.by_n_weekday.length > 1) {
-      return false;
-    }
-    if (rule.by_month_day && rule.by_month_day.length > 1) {
-      return false;
-    }
-    const hasNthWeekday = Boolean(rule.by_n_weekday?.length);
-    const hasMonthDay = Boolean(rule.by_month_day?.length);
-    return hasNthWeekday !== hasMonthDay;
-  }
-  return false;
 }
 
 /**
