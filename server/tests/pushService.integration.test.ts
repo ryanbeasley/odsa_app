@@ -84,7 +84,6 @@ describe('push service integration', () => {
     ({ createWorkingGroup } = await import('../src/repositories/workingGroupRepository'));
     ({ createEvent, addEventAttendee } = await import('../src/repositories/eventRepository'));
     ({ upsertPushSubscription } = await import('../src/repositories/pushSubscriptionRepository'));
-    ({ upsertWebPushSubscription } = await import('../src/repositories/webPushRepository'));
     ({ hasEventNotificationLog } = await import('../src/repositories/notificationRepository'));
   });
 
@@ -115,8 +114,6 @@ describe('push service integration', () => {
     const userB = createUser('announce-b@example.com', 'hash', 'user');
     upsertPushSubscription(userA.id, 'token-a', { announcementAlertsEnabled: true });
     upsertPushSubscription(userB.id, 'token-b', { announcementAlertsEnabled: false });
-    upsertWebPushSubscription(userA.id, 'https://push.example/one', 'p256dh-1', 'auth-1');
-    upsertWebPushSubscription(userB.id, 'https://push.example/two', 'p256dh-2', 'auth-2');
 
     await sendAnnouncementPush('Hello members');
 
@@ -133,11 +130,6 @@ describe('push service integration', () => {
         body: 'Hello members',
       },
     ]);
-
-    const webPushMock = webPush as unknown as {
-      sendNotification: ReturnType<typeof vi.fn>;
-    };
-    expect(webPushMock.sendNotification).toHaveBeenCalledTimes(2);
   });
 
   /**

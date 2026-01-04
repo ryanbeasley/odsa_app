@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { db } from '../db/connection';
 import { EventAttendeeRow, EventRow } from '../types';
 

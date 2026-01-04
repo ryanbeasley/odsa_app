@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import { authenticate, AuthedRequest, requireAdmin } from '../middleware/authenticate';
 import {
   addEventAttendee,

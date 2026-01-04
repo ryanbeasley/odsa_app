@@ -37,7 +37,7 @@ router.get('/announcements', authenticate, (req, res) => {
 
   const rows = listAnnouncements(limit, cursor);
   const announcements = rows.map(serializeAnnouncement);
-  const nextCursor = rows.length === limit ? rows[rows.length - 1].id : null;
+  const nextCursor = rows.length === limit ? rows.at(-1)?.id : null;
   console.log(`Fetched ${rows.length} announcements (limit: ${limit}, cursor: ${cursor ?? 'none'})`);
   res.json({ announcements, nextCursor });
 });
@@ -89,7 +89,7 @@ router.patch('/support-links/reorder', authenticate, requireAdmin, (req, res) =>
   if (!ids?.length || !ids.every((value: unknown) => Number.isFinite(Number(value)))) {
     return res.status(400).json({ error: 'ids must be an array of numbers' });
   }
-  const parsedIds = ids.map((value: unknown) => Number(value));
+  const parsedIds = ids.map(Number);
   const uniqueIds = new Set(parsedIds);
   if (uniqueIds.size !== parsedIds.length) {
     return res.status(400).json({ error: 'ids must be unique' });

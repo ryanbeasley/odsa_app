@@ -145,7 +145,7 @@ function readOptionalString(value: unknown) {
     return null;
   }
   const trimmed = typeof value === 'string' ? value.trim() : null;
-  return { value: trimmed ? trimmed : null };
+  return { value: trimmed };
 }
 
 type ProfileUpdateResult = { updates: ProfileUpdates } | { error: string; status: number };

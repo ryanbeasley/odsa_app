@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Hero } from '../../src/components/Hero';
 import { BottomNav, TabKey } from '../../src/components/BottomNav';
-import { colors } from '../../src/styles/theme';
 import { AppDataProvider, useAppData } from '../../src/providers/AppDataProvider';
 import { TAB_ROUTES, tabFromPathname } from '../../src/navigation/tabs';
 

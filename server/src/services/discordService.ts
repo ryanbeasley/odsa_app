@@ -1,5 +1,5 @@
 import { DISCORD_BOT_TOKEN, DISCORD_GUILD_ID } from '../config/env';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { EventRow } from '../types';
 import {
   createEvent,
@@ -306,7 +306,7 @@ function upsertDiscordSeriesEvent(params: {
     deleteEventById(existing.id);
   }
   const seriesUuid = randomUUID();
-  const seriesEndAt = occurrences.at(occurrences.length - 1)?.endAt.toISOString() ?? null;
+  const seriesEndAt = occurrences.at(-1)?.endAt.toISOString() ?? null;
   const recurrenceRuleJson = event.recurrence_rule ? JSON.stringify(event.recurrence_rule) : null;
   occurrences.forEach((occ, index) => {
     const created = createEvent(

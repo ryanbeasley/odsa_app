@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     baseConfig.extra?.eas?.projectId;
 
   const notification = {
-    ...((baseConfig as { notification?: Record<string, unknown> }).notification ?? {}),
+    ...(baseConfig as { notification?: Record<string, unknown> }).notification,
     vapidPublicKey:
       process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY ??
       (baseConfig as { notification?: { vapidPublicKey?: string } }).notification?.vapidPublicKey,
@@ -32,11 +32,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       new Set([...(baseConfig.plugins ?? []), ...(config.plugins ?? []), 'expo-router'])
     ),
     extra: {
-      ...(baseConfig.extra ?? {}),
-      ...(config.extra ?? {}),
+      ...baseConfig.extra,
+      ...config.extra,
       eas: {
-        ...(baseConfig.extra?.eas ?? {}),
-        ...(config.extra?.eas ?? {}),
+        ...baseConfig.extra?.eas,
+        ...config.extra?.eas,
         projectId,
       },
       applicationId:

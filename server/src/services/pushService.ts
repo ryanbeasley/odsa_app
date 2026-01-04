@@ -1,8 +1,6 @@
 import webPush from 'web-push';
 import { EXPO_PUSH_TOKEN, EVENT_ALERT_HOUR_MS, EVENT_ALERT_INTERVAL_MS, EVENT_ALERT_LOOKAHEAD_HOURS, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY } from '../config/env';
-import { listPushSubscriptions } from '../repositories/pushSubscriptionRepository';
-import { listWebPushSubscriptions } from '../repositories/webPushRepository';
-import { listEventAlertCandidates } from '../repositories/pushSubscriptionRepository';
+import { listPushSubscriptions, listEventAlertCandidates } from '../repositories/pushSubscriptionRepository';
 import { hasEventNotificationLog, recordEventNotificationLog } from '../repositories/notificationRepository';
 import { runWithLogContext, DEFAULT_LOG_PATH, buildLogContext } from '../utils/logContext';
 
@@ -53,25 +51,6 @@ export async function sendAnnouncementPush(body: string) {
     body,
   }));
   await dispatchExpoPushMessages(messages);
-
-  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-    const webSubs = listWebPushSubscriptions();
-    const payload = JSON.stringify({ title: 'New announcement', body });
-    for (const sub of webSubs) {
-      try {
-        await webPush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
-          payload
-        );
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to send web push', err);
-      }
-    }
-  }
 }
 
 /**

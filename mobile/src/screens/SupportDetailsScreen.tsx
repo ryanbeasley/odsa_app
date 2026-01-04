@@ -31,7 +31,6 @@ export function SupportDetailsScreen() {
   const token = auth.token;
   const canToggleAdmin = auth.isSessionAdmin;
   const isAdminView = auth.isViewingAsAdmin;
-  const onToggleAdmin = auth.toggleAdminMode;
   const {
     links,
     loading: linksLoading,

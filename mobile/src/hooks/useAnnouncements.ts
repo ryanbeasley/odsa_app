@@ -52,10 +52,10 @@ export function useAnnouncements(token: string | null) {
       if (cursor) {
         params.set('cursor', String(cursor));
       }
-      const queryString = params.toString();
+      const queryString = params.toString() ? `?${params.toString()}` : '';
 
       const response = await fetch(
-        `${SERVER_URL}/api/announcements${queryString ? `?${queryString}` : ''}`,
+        `${SERVER_URL}/api/announcements${queryString}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

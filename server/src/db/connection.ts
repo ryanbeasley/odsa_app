@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import { Role } from '../types';
@@ -19,7 +19,7 @@ const formatParams = (params: unknown[]) => {
   try {
     return JSON.stringify(params);
   } catch {
-    return `[${params.map((param) => String(param)).join(', ')}]`;
+    return `[${params.map(String).join(', ')}]`;
   }
 };
 

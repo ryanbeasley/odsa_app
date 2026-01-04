@@ -1,4 +1,3 @@
-import { EXPO_PUSH_TOKEN } from './config/env';
 import app from './app';
 import { startEventAlertScheduler } from './services/pushService';
 

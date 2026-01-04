@@ -192,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const toggleAdminMode = () => {
     setViewAsMember((prev) => {
-      if (!sessionUser || sessionUser.role !== 'admin') {
+      if (sessionUser?.role !== 'admin') {
         return false;
       }
       return !prev;
@@ -291,11 +291,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void persistSession(data.token, data.user);
   };
 
-  const effectiveUser: User | null = sessionUser
-    ? viewAsMember && sessionUser.role === 'admin'
-      ? { ...sessionUser, role: 'user' as Role }
-      : sessionUser
-    : null;
+  const effectiveUser: User | null = (() => {
+    if (!sessionUser) {
+      return null;
+    }
+    if (viewAsMember && sessionUser.role === 'admin') {
+      return { ...sessionUser, role: 'user' as Role };
+    }
+    return sessionUser;
+  })();
 
   const value = useMemo<AuthContextValue>(
     () => ({

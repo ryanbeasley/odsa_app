@@ -14,7 +14,6 @@ import { Feather } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { colors } from '../styles/theme';
-import { Announcement } from '../types';
 import { SectionCard } from '../components/SectionCard';
 import { TextField } from '../components/TextField';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -173,6 +172,30 @@ export function AnnouncementsScreen() {
     return false;
   };
 
+  const renderAnnouncementsContent = () => {
+    if (announcementsState.loading) {
+      return <ActivityIndicator color={colors.primary} />;
+    }
+    if (!announcementsState.announcements.length) {
+      return <Text style={styles.emptyState}>No announcements yet. Check back soon.</Text>;
+    }
+    return (
+      <>
+        <View style={styles.announcementBody}>
+          {announcementsState.announcements.map((announcement) => (
+            <View key={announcement.id} style={styles.announcementItem}>
+              <Text style={styles.timestamp}>{formatTimestamp(announcement.createdAt)}</Text>
+              {renderAnnouncementMessage(announcement.body, handleMessageLinkPress)}
+            </View>
+          ))}
+        </View>
+        {announcementsState.loadingMore ? (
+          <ActivityIndicator style={styles.loadingMoreIndicator} color={colors.primaryDark} />
+        ) : null}
+      </>
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -218,25 +241,7 @@ export function AnnouncementsScreen() {
           ) : (
             <Text style={styles.info}>End of announcements.</Text>
           )}
-          {announcementsState.loading ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : announcementsState.announcements.length ? (
-            <>
-              <View style={styles.announcementBody}>
-                {announcementsState.announcements.map((announcement) => (
-                  <View key={announcement.id} style={styles.announcementItem}>
-                    <Text style={styles.timestamp}>{formatTimestamp(announcement.createdAt)}</Text>
-                    {renderAnnouncementMessage(announcement.body, handleMessageLinkPress)}
-                  </View>
-                ))}
-              </View>
-              {announcementsState.loadingMore ? (
-                <ActivityIndicator style={styles.loadingMoreIndicator} color={colors.primaryDark} />
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.emptyState}>No announcements yet. Check back soon.</Text>
-          )}
+          {renderAnnouncementsContent()}
         </SectionCard>
       </ScrollView>
       <Modal

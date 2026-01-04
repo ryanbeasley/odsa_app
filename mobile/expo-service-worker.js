@@ -15,7 +15,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/';
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    globalThis.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
           client.focus();
@@ -25,8 +25,8 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
+      if (globalThis.clients.openWindow) {
+        return globalThis.clients.openWindow(targetUrl);
       }
       return undefined;
     })
