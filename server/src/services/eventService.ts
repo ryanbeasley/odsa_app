@@ -1,14 +1,21 @@
 import crypto from 'node:crypto';
 import {
   createEvent,
+  countAttendeesByEventIds,
   deleteEventById,
   deleteEventsBySeries,
+  listUpcomingEvents,
+  listUserEventIds,
   updateEvent,
   updateEventDiscordId,
+  findEventById,
 } from '../repositories/eventRepository';
+import { serializeEvent } from '../utils/serializer';
 import { createDiscordEventFromApp, updateDiscordEventFromApp } from './discordService';
 import { DiscordRecurrenceFrequency, DiscordWeekday } from './discordTypes';
 import { MonthlyPattern, NormalizedRecurrence, RecurrenceRule, EventPayload } from '../types';
+import { CreateEventPayload } from '../validation/eventsSchemas';
+import { findWorkingGroupById } from '../repositories/workingGroupRepository';
 
 type DiscordRecurrenceRule = {
   start: string;
@@ -415,4 +422,173 @@ export function getNthWeekdayOfMonth(
     result.setDate(result.getDate() - 7);
   }
   return result;
+}
+
+/**
+ * Returns events for a given user, including attendance info.
+ */
+export function getEvents(userId: number) {
+  console.logEnter();
+  const userEventIds = new Set(listUserEventIds(userId));
+  const nowIso = new Date().toISOString();
+  const eventsRaw = listUpcomingEvents(nowIso);
+  const attendeeCounts = countAttendeesByEventIds(eventsRaw.map((e) => e.id));
+  const events = eventsRaw.map((evt) => {
+    const serialized = serializeEvent(evt);
+    const attending = userEventIds.has(evt.id);
+    return {
+      ...serialized,
+      attending,
+      attendeeCount: attendeeCounts[evt.id] ?? 0,
+    };
+  });
+
+  const grouped = events.reduce<Record<string, { upcoming: typeof events; next: typeof events[number] }>>((acc, evt) => {
+    const key = evt.seriesUuid ?? `single-${evt.id}`;
+    if (!acc[key]) {
+      acc[key] = { upcoming: [], next: evt };
+    }
+    acc[key].upcoming.push(evt);
+    if (new Date(evt.startAt).getTime() < new Date(acc[key].next.startAt).getTime()) {
+      acc[key].next = evt;
+    }
+    return acc;
+  }, {});
+
+  return Object.values(grouped).map(({ next, upcoming }) => ({
+    ...next,
+    attending: next.attending || (next.seriesUuid ? upcoming.some((e) => e.attending) : false),
+    upcomingOccurrences: upcoming
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+      .slice(0, 5)
+      .map((e) => ({
+        eventId: e.id,
+        startAt: e.startAt,
+        attendeeCount: e.attendeeCount ?? 0,
+        attending: Boolean(e.attending),
+      })),
+  }));
+}
+
+/**
+ * Creates single or recurring events.
+ */
+export async function createEvents(eventPayload: CreateEventPayload) {
+  console.logEnter();
+  const {
+    name,
+    description,
+    workingGroupId,
+    startAt,
+    endAt,
+    location,
+    locationDisplayName,
+    createDiscordEvent,
+    recurrenceRule,
+    seriesEndAt,
+  } = eventPayload;
+  const numericWorkingGroupId = Number(workingGroupId);
+    const workingGroup = findWorkingGroupById(numericWorkingGroupId);
+    if (!workingGroup) {
+      throw new Error('workingGroupId must reference an existing working group');
+    }
+    const baseStart = new Date(startAt);
+    const baseEnd = new Date(endAt);
+    const normalized = normalizeRecurrenceRuleInput(recurrenceRule, baseStart);
+    if ('error' in normalized) {
+      throw new Error(normalized.error);
+    }
+    const { recurrence, monthlyPattern, rule: normalizedRule, dailyWeekdays } = normalized;
+    const seriesUuid = recurrence === 'none' ? null : crypto.randomUUID();
+    const seriesEndDate = seriesEndAt ? new Date(seriesEndAt) : null;
+    const recurrenceRuleJson = normalizedRule ? JSON.stringify(normalizedRule) : null;
+  
+    const expanded = expandRecurringEvents({
+      baseEvent: {
+        name: name.trim(),
+        description: description.trim(),
+        workingGroupId: numericWorkingGroupId,
+        startAt: baseStart,
+        endAt: baseEnd,
+        location: location.trim(),
+        locationDisplayName: normalizeDisplayName(locationDisplayName),
+      },
+      recurrence,
+      seriesEnd: seriesEndDate,
+      seriesUuid,
+      monthlyPattern,
+      dailyWeekdays,
+      recurrenceRuleJson,
+    });
+  
+    const createdEvents = expanded.map((payload) =>
+      createEvent(
+        payload.name,
+        payload.description,
+        payload.workingGroupId,
+        payload.startAt,
+        payload.endAt,
+        payload.location,
+        payload.locationDisplayName,
+        payload.seriesUuid,
+        payload.recurrenceRuleJson ?? null,
+        payload.seriesEndAt
+      )
+    );
+    console.log('Created events with IDs:', createdEvents.map((e) => e.id));
+  
+    if (createDiscordEvent) {
+      const target = createdEvents[0];
+      const discordEventId = await createDiscordEventFromApp(target);
+      updateEventDiscordId(target.id, discordEventId);
+      target.discord_event_id = discordEventId;
+      console.log('Created Discord event with ID:', discordEventId);
+    }
+  
+    const first = createdEvents[0];
+    return serializeEvent({ ...first, working_group_name: workingGroup.name });
+}
+
+/**
+ * Updates an event and its series if applicable.
+ */
+export async function updateEvents(
+  eventPayload: EventPayload,
+  normalized: NormalizedRecurrence,
+  eventId: number
+) {
+  console.logEnter();
+  const workingGroup = findWorkingGroupById(eventPayload.workingGroupId);
+  if (!workingGroup) {
+    throw new Error('workingGroupId must reference an existing working group');
+  }
+  const existing = findEventById(eventId);
+  if (!existing) {
+    throw new Error('Event not found');
+  }
+  const seriesEndDate = eventPayload.seriesEndAt ? new Date(eventPayload.seriesEndAt) : null;
+  const recurrenceRuleJson = normalized.rule ? JSON.stringify(normalized.rule) : null;
+  const updated =
+    normalized.recurrence !== 'none'
+      ? await updateRecurringSeries({
+          id: eventId,
+          existing,
+          payload: eventPayload,
+          normalized,
+          seriesEndDate,
+          recurrenceRuleJson,
+        })
+      : await updateSingleEvent({
+          id: eventId,
+          existing,
+          payload: eventPayload,
+          recurrenceRuleJson,
+        });
+  if (!updated) {
+    throw new Error('Failed to update event');
+  }
+  if (eventPayload.createDiscordEvent && updated) {
+    await syncDiscordEvent(updated);
+  }
+  return serializeEvent({ ...updated, working_group_name: workingGroup.name });
 }

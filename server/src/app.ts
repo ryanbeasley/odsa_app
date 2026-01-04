@@ -1,11 +1,9 @@
 import express from 'express';
 import { EXPO_PUSH_TOKEN } from './config/env';
-import authController from './controllers/authController';
-import homeController from './controllers/homeController';
-import eventsController from './controllers/eventsController';
-import settingsController from './controllers/settingsController';
+import { createRouter } from './routes';
 import { buildLogContextFromRequest, DEFAULT_LOG_PATH, isLogSilenced, runWithLogContext } from './utils/logContext';
 import { initLogging } from './utils/logger';
+import { UnauthorizedUserError } from './utils/errors';
 
 type AppOptions = {
   disableLogContext?: boolean;
@@ -71,15 +69,19 @@ export function createApp(options: AppOptions = {}) {
   /**
    * API routing to api controllers
    */
-  app.use('/api', authController);
-  app.use('/api', homeController);
-  app.use('/api', eventsController);
-  app.use('/api', settingsController);
+  app.use(createRouter());
 
   /**
    * Global error handler
    */
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof UnauthorizedUserError) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    if (err instanceof Error) {
+      console.error('Unhandled error', err.message, err.stack);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
     console.error('Unhandled error', err);
     res.status(500).json({ error: 'Internal server error' });
   });

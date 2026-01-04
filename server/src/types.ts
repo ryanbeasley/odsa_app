@@ -116,12 +116,13 @@ export type EventNotificationType = 'day-of' | 'hour-before' | 'sms-day-of' | 's
 
 export interface UserRow {
   id: number;
-  email: string;
   password_hash: string;
   role: Role;
+  username: string;
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
+  email: string | null;
   event_alerts_sms_enabled: number;
 }
 

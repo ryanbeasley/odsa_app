@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { EventRow } from '../src/types';
-import { DiscordEntityType, DiscordRecurrenceFrequency, DiscordWeekday } from '../src/services/discordTypes';
+import type { EventRow } from '../../src/types';
+import { DiscordEntityType, DiscordRecurrenceFrequency, DiscordWeekday } from '../../src/services/discordTypes';
 
 type EventRepoMocks = {
   createEvent: ReturnType<typeof vi.fn>;
@@ -19,9 +19,9 @@ type WorkingGroupMocks = {
 type SetupResult = {
   repoMocks: EventRepoMocks;
   groupMocks: WorkingGroupMocks;
-  syncDiscordEvents: typeof import('../src/services/discordService').syncDiscordEvents;
-  createDiscordEventFromApp: typeof import('../src/services/discordService').createDiscordEventFromApp;
-  updateDiscordEventFromApp: typeof import('../src/services/discordService').updateDiscordEventFromApp;
+  syncDiscordEvents: typeof import('../../src/services/discordService').syncDiscordEvents;
+  createDiscordEventFromApp: typeof import('../../src/services/discordService').createDiscordEventFromApp;
+  updateDiscordEventFromApp: typeof import('../../src/services/discordService').updateDiscordEventFromApp;
 };
 
 async function setupDiscordService(overrides?: { token?: string; guildId?: string }) {
@@ -39,14 +39,14 @@ async function setupDiscordService(overrides?: { token?: string; guildId?: strin
   };
 
   vi.resetModules();
-  vi.doMock('../src/config/env', () => ({
+  vi.doMock('../../src/config/env', () => ({
     DISCORD_BOT_TOKEN: overrides?.token ?? 'token',
     DISCORD_GUILD_ID: overrides?.guildId ?? 'guild',
   }));
-  vi.doMock('../src/repositories/eventRepository', () => repoMocks);
-  vi.doMock('../src/repositories/workingGroupRepository', () => groupMocks);
+  vi.doMock('../../src/repositories/eventRepository', () => repoMocks);
+  vi.doMock('../../src/repositories/workingGroupRepository', () => groupMocks);
 
-  const module = await import('../src/services/discordService');
+  const module = await import('../../src/services/discordService');
   return {
     repoMocks,
     groupMocks,

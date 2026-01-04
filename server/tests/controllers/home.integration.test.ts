@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestApp } from './helpers';
+import { createTestApp } from '../helpers';
 
 describe('homeController integration', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>['app'];
@@ -8,9 +8,9 @@ describe('homeController integration', () => {
   let adminToken: string;
   let userToken: string;
 
-  const createUserToken = async (email: string) => {
+  const createUserToken = async (username: string) => {
     const response = await request(app).post('/api/signup').send({
-      email,
+      username,
       password: 'password123',
     });
     return response.body.token as string;
@@ -21,7 +21,7 @@ describe('homeController integration', () => {
     app = setup.app;
     cleanup = setup.cleanup;
     adminToken = await setup.getAdminToken();
-    userToken = await createUserToken('user@example.com');
+    userToken = await createUserToken('user');
   });
 
   afterAll(async () => {

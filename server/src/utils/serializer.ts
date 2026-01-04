@@ -14,7 +14,8 @@ import {
 export function toPublicUser(user: UserRow) {
   return {
     id: user.id,
-    email: user.email,
+    email: user.email ?? null,
+    username: user.username,
     role: user.role,
     firstName: user.first_name ?? null,
     lastName: user.last_name ?? null,

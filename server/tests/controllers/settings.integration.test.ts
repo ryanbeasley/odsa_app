@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createTestApp } from './helpers';
+import { createTestApp } from '../helpers';
 
 describe('settingsController integration', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>['app'];
@@ -9,9 +9,9 @@ describe('settingsController integration', () => {
   let userToken: string;
   let nonAdminToken: string;
 
-  const createUserToken = async (email: string) => {
+  const createUserToken = async (username: string) => {
     const response = await request(app).post('/api/signup').send({
-      email,
+      username,
       password: 'password123',
     });
     return response.body.token as string;
@@ -28,8 +28,8 @@ describe('settingsController integration', () => {
     app = setup.app;
     cleanup = setup.cleanup;
     adminToken = await setup.getAdminToken();
-    userToken = await createUserToken('settings-user@example.com');
-    nonAdminToken = await createUserToken('settings-viewer@example.com');
+    userToken = await createUserToken('settings-user');
+    nonAdminToken = await createUserToken('settings-viewer');
   });
 
   afterAll(async () => {
@@ -43,14 +43,14 @@ describe('settingsController integration', () => {
       .send({
         firstName: 'Test',
         lastName: 'User',
-        phone: '555-1234',
+        phone: '+15551234567',
         email: 'settings-user-updated@example.com',
       });
 
     expect(response.status).toBe(200);
     expect(response.body.user.firstName).toBe('Test');
     expect(response.body.user.lastName).toBe('User');
-    expect(response.body.user.phone).toBe('555-1234');
+    expect(response.body.user.phone).toBe('+15551234567');
     expect(response.body.user.email).toBe('settings-user-updated@example.com');
   });
 

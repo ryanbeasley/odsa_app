@@ -10,6 +10,14 @@ export function findUserByEmail(email: string): UserRow | undefined {
 }
 
 /**
+ * Finds a user row by username.
+ */
+export function findUserByUsername(username: string): UserRow | undefined {
+  console.logEnter();
+  return db.prepare<[string], UserRow>('SELECT * FROM users WHERE username = ?').get(username);
+}
+
+/**
  * Finds a user row by primary key.
  */
 export function findUserById(id: number): UserRow | undefined {
@@ -20,11 +28,13 @@ export function findUserById(id: number): UserRow | undefined {
 /**
  * Inserts a new user with the given credentials.
  */
-export function createUser(email: string, passwordHash: string, role: Role): UserRow {
+export function createUser(email: string | null, username: string, passwordHash: string, role: Role): UserRow {
   console.logEnter();
   const info = db
-    .prepare<[string, string, Role]>('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)')
-    .run(email, passwordHash, role);
+    .prepare<[string | null, string, string, Role]>(
+      'INSERT INTO users (email, username, password_hash, role) VALUES (?, ?, ?, ?)'
+    )
+    .run(email, username, passwordHash, role);
 
   return findUserById(Number(info.lastInsertRowid)) as UserRow;
 }
@@ -37,17 +47,18 @@ export function listUsers(search?: string): UserRow[] {
   if (search?.trim()) {
     const term = `%${search.trim().toLowerCase()}%`;
     return db
-      .prepare<[string, string, string], UserRow>(
+      .prepare<[string, string, string, string], UserRow>(
         `SELECT * FROM users
-         WHERE LOWER(email) LIKE ?
+         WHERE LOWER(COALESCE(email, '')) LIKE ?
+            OR LOWER(username) LIKE ?
             OR LOWER(COALESCE(first_name, '')) LIKE ?
             OR LOWER(COALESCE(last_name, '')) LIKE ?
-         ORDER BY email ASC`
+         ORDER BY username ASC`
       )
-      .all(term, term, term);
+      .all(term, term, term, term);
   }
 
-  return db.prepare<[], UserRow>('SELECT * FROM users ORDER BY email ASC').all();
+  return db.prepare<[], UserRow>('SELECT * FROM users ORDER BY username ASC').all();
 }
 
 /**
@@ -56,10 +67,11 @@ export function listUsers(search?: string): UserRow[] {
 export function updateUserProfile(
   id: number,
   updates: {
-    email?: string;
+    email?: string | null;
     first_name?: string | null;
     last_name?: string | null;
     phone?: string | null;
+    username?: string;
     event_alerts_sms_enabled?: number;
   }
 ): UserRow | undefined {
@@ -81,6 +93,10 @@ export function updateUserProfile(
   if (updates.phone !== undefined) {
     fields.push('phone = ?');
     values.push(updates.phone);
+  }
+  if (updates.username !== undefined) {
+    fields.push('username = ?');
+    values.push(updates.username);
   }
   if (updates.event_alerts_sms_enabled !== undefined) {
     fields.push('event_alerts_sms_enabled = ?');

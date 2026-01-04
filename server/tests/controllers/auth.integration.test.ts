@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestApp } from './helpers';
+import { createTestApp } from '../helpers';
 
 describe('authController integration', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>['app'];
@@ -18,30 +18,30 @@ describe('authController integration', () => {
 
   it('signs up and logs in a user', async () => {
     const signup = await request(app).post('/api/signup').send({
-      email: 'newuser@example.com',
+      username: 'newuser',
       password: 'password123',
     });
     expect(signup.status).toBe(201);
-    expect(signup.body.user.email).toBe('newuser@example.com');
+    expect(signup.body.user.username).toBe('newuser');
     expect(signup.body.token).toBeTruthy();
 
     const login = await request(app).post('/api/login').send({
-      email: 'newuser@example.com',
+      username: 'newuser',
       password: 'password123',
     });
     expect(login.status).toBe(200);
-    expect(login.body.user.email).toBe('newuser@example.com');
+    expect(login.body.user.username).toBe('newuser');
     expect(login.body.token).toBeTruthy();
   });
 
   it('rejects invalid signup payloads', async () => {
-    const missingEmail = await request(app).post('/api/signup').send({
+    const missingUsername = await request(app).post('/api/signup').send({
       password: 'password123',
     });
-    expect(missingEmail.status).toBe(400);
+    expect(missingUsername.status).toBe(400);
 
     const shortPassword = await request(app).post('/api/signup').send({
-      email: 'short@example.com',
+      username: 'shortuser',
       password: '123',
     });
     expect(shortPassword.status).toBe(400);
@@ -49,11 +49,11 @@ describe('authController integration', () => {
 
   it('prevents duplicate signups', async () => {
     await request(app).post('/api/signup').send({
-      email: 'dup@example.com',
+      username: 'dupuser',
       password: 'password123',
     });
     const duplicate = await request(app).post('/api/signup').send({
-      email: 'dup@example.com',
+      username: 'dupuser',
       password: 'password123',
     });
     expect(duplicate.status).toBe(409);
@@ -61,22 +61,22 @@ describe('authController integration', () => {
 
   it('rejects invalid login attempts', async () => {
     const missing = await request(app).post('/api/login').send({
-      email: 'missing@example.com',
+      username: 'missinguser',
     });
     expect(missing.status).toBe(400);
 
     const wrongEmail = await request(app).post('/api/login').send({
-      email: 'unknown@example.com',
+      username: 'unknownuser',
       password: 'password123',
     });
     expect(wrongEmail.status).toBe(401);
 
     await request(app).post('/api/signup').send({
-      email: 'known@example.com',
+      username: 'knownuser',
       password: 'password123',
     });
     const wrongPassword = await request(app).post('/api/login').send({
-      email: 'known@example.com',
+      username: 'knownuser',
       password: 'wrong',
     });
     expect(wrongPassword.status).toBe(401);

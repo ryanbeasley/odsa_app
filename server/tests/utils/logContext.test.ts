@@ -10,7 +10,7 @@ import {
   isLogSilenced,
   LogLevel,
   runWithLogContext,
-} from '../src/utils/logContext';
+} from '../../src/utils/logContext';
 
 type TempLog = {
   dir: string;

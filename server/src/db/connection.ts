@@ -46,6 +46,16 @@ db.prepare = ((...args) => {
   return statement;
 }) as typeof db.prepare;
 
+export function closeDb() {
+  try {
+    db.close();
+  } catch (error) {
+    if (error instanceof Error) {
+      console.warn('Failed to close database:', error.message);
+    }
+  }
+}
+
 const supportLinkSeeds = [
   {
     title: 'Contact organizers',
@@ -85,9 +95,10 @@ function ensureTables() {
   db.prepare(
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL UNIQUE,
+      email TEXT UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
+      username TEXT NOT NULL UNIQUE,
       first_name TEXT,
       last_name TEXT,
       phone TEXT,
@@ -188,7 +199,47 @@ function runMigrations() {
   ensureColumn('series_end_at', 'series_end_at TEXT');
   db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS events_discord_event_id_idx ON events(discord_event_id)').run();
 
-  const userColumns = db.prepare<[], { name: string }>('PRAGMA table_info(users)').all();
+  const userColumns = db
+    .prepare<[], { name: string; notnull: number }>('PRAGMA table_info(users)')
+    .all();
+  const hasEmailNotNull = userColumns.some((col) => col.name === 'email' && col.notnull === 1);
+  const hasUsername = userColumns.some((col) => col.name === 'username');
+  if (hasEmailNotNull || !hasUsername) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN');
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS users_next (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('user', 'admin')),
+        username TEXT NOT NULL UNIQUE,
+        first_name TEXT,
+        last_name TEXT,
+        phone TEXT,
+        event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0
+      )`
+    );
+    const hasFirstName = userColumns.some((col) => col.name === 'first_name');
+    const hasLastName = userColumns.some((col) => col.name === 'last_name');
+    const hasPhone = userColumns.some((col) => col.name === 'phone');
+    const hasSmsEnabled = userColumns.some((col) => col.name === 'event_alerts_sms_enabled');
+    const usernameColumn = hasUsername ? 'username' : "''";
+    const firstNameColumn = hasFirstName ? 'first_name' : 'NULL';
+    const lastNameColumn = hasLastName ? 'last_name' : 'NULL';
+    const phoneColumn = hasPhone ? 'phone' : 'NULL';
+    const smsColumn = hasSmsEnabled ? 'event_alerts_sms_enabled' : '0';
+    db.exec(
+      `INSERT INTO users_next (id, email, password_hash, role, username, first_name, last_name, phone, event_alerts_sms_enabled)
+       SELECT id, email, password_hash, role, ${usernameColumn}, ${firstNameColumn}, ${lastNameColumn}, ${phoneColumn}, ${smsColumn}
+       FROM users`
+    );
+    db.exec('DROP TABLE users');
+    db.exec('ALTER TABLE users_next RENAME TO users');
+    db.exec('COMMIT');
+    db.exec('PRAGMA foreign_keys = ON');
+    userColumns.splice(0, userColumns.length, ...db.prepare<[], { name: string; notnull: number }>('PRAGMA table_info(users)').all());
+  }
   if (!userColumns.some((col) => col.name === 'first_name')) {
     db.prepare('ALTER TABLE users ADD COLUMN first_name TEXT').run();
   }
@@ -201,6 +252,23 @@ function runMigrations() {
   if (!userColumns.some((col) => col.name === 'event_alerts_sms_enabled')) {
     db.prepare('ALTER TABLE users ADD COLUMN event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0').run();
   }
+  if (!userColumns.some((col) => col.name === 'username')) {
+    db.prepare('ALTER TABLE users ADD COLUMN username TEXT').run();
+  }
+  const usersMissingUsername = db
+    .prepare('SELECT id, email FROM users WHERE username IS NULL OR TRIM(username) = \'\'')
+    .all() as Array<{ id: number; email: string | null }>;
+  usersMissingUsername.forEach((row) => {
+    const base = row.email?.split('@')[0]?.toLowerCase() ?? `user${row.id}`;
+    const normalized = base.replace(/[^a-z0-9._-]/g, '_') || `user${row.id}`;
+    let candidate = normalized;
+    let counter = 1;
+    while (db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').get(candidate, row.id)) {
+      candidate = `${normalized}${counter}`;
+      counter += 1;
+    }
+    db.prepare('UPDATE users SET username = ? WHERE id = ?').run(candidate, row.id);
+  });
 
   const pushColumns = db.prepare<[], { name: string }>('PRAGMA table_info(push_subscriptions)').all();
   if (!pushColumns.some((col) => col.name === 'announcement_alerts_enabled')) {
@@ -241,10 +309,12 @@ function seedAdminUser() {
     return;
   }
   const hash = bcrypt.hashSync(seedAdminPassword, 10);
-  db.prepare('INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)').run(
+  const baseUsername = seedAdminEmail.trim().toLowerCase().split('@')[0] ?? 'admin';
+  db.prepare('INSERT INTO users (email, password_hash, role, username) VALUES (?, ?, ?, ?)').run(
     seedAdminEmail.trim().toLowerCase(),
     hash,
-    'admin' as Role
+    'admin' as Role,
+    baseUsername.replace(/[^a-z0-9._-]/g, '_') || 'admin'
   );
   // eslint-disable-next-line no-console
   console.log(`Seeded admin user ${seedAdminEmail}`);

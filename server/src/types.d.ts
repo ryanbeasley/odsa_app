@@ -19,6 +19,13 @@ declare module 'jsonwebtoken' {
   export function verify(token: string, secret: string): JwtPayload;
 }
 
+declare module 'express-serve-static-core' {
+  interface Request {
+    validated?: unknown;
+    validatedQuery?: unknown;
+  }
+}
+
 declare global {
   interface Console {
     logEnter: (...params: unknown[]) => void;

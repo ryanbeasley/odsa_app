@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DiscordRecurrenceFrequency } from '../src/services/discordTypes';
-import type { EventPayload, EventRow } from '../src/types';
+import { DiscordRecurrenceFrequency } from '../../src/services/discordTypes';
+import type { EventPayload, EventRow } from '../../src/types';
 
-vi.mock('../src/repositories/eventRepository', () => ({
+vi.mock('../../src/repositories/eventRepository', () => ({
   createEvent: vi.fn(),
   deleteEventById: vi.fn(),
   deleteEventsBySeries: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('../src/repositories/eventRepository', () => ({
   updateEventDiscordId: vi.fn(),
 }));
 
-vi.mock('../src/services/discordService', () => ({
+vi.mock('../../src/services/discordService', () => ({
   createDiscordEventFromApp: vi.fn(async () => 'discord-123'),
   updateDiscordEventFromApp: vi.fn(async () => {}),
 }));
@@ -24,15 +24,15 @@ import {
   updateSingleEvent,
   validateEvent,
   validateEventPayload,
-} from '../src/services/eventService';
+} from '../../src/services/eventService';
 import {
   createEvent,
   deleteEventById,
   deleteEventsBySeries,
   updateEvent,
   updateEventDiscordId,
-} from '../src/repositories/eventRepository';
-import { createDiscordEventFromApp, updateDiscordEventFromApp } from '../src/services/discordService';
+} from '../../src/repositories/eventRepository';
+import { createDiscordEventFromApp, updateDiscordEventFromApp } from '../../src/services/discordService';
 
 describe('eventService', () => {
   beforeEach(() => {

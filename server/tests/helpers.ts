@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import request from 'supertest';
+import { vi } from 'vitest';
 
 export async function createTestApp(options?: { env?: Record<string, string> }) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'odsa-test-'));
@@ -16,17 +17,32 @@ export async function createTestApp(options?: { env?: Record<string, string> }) 
     });
   }
 
+  vi.resetModules();
   const { createApp } = await import('../src/app');
   const app = createApp({ disableLogContext: false });
 
   return {
     app,
     async cleanup() {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+      try {
+        const { closeDb } = await import('../src/db/connection');
+        closeDb();
+      } catch (error) {
+        if (error instanceof Error) {
+          console.warn('Failed to close test database:', error.message);
+        }
+      }
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EPERM') {
+          throw error;
+        }
+      }
     },
     async getAdminToken() {
       const response = await request(app).post('/api/login').send({
-        email: process.env.ADMIN_EMAIL,
+        username: 'admin',
         password: process.env.ADMIN_PASSWORD,
       });
       if (response.status !== 200) {

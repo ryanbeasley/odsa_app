@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createTestApp } from './helpers';
+import { createTestApp } from '../helpers';
 
 /**
  * Builds a Discord event payload for sync testing.

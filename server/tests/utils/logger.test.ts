@@ -1,11 +1,11 @@
 import type { Request } from 'express';
 import type fs from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { initLogging } from '../src/utils/logger';
-import { getLogContext, isLogSilenced, LogLevel } from '../src/utils/logContext';
+import { initLogging } from '../../src/utils/logger';
+import { getLogContext, isLogSilenced, LogLevel } from '../../src/utils/logContext';
 
-vi.mock('../src/utils/logContext', async () => {
-  const actual = await vi.importActual<typeof import('../src/utils/logContext')>('../src/utils/logContext');
+vi.mock('../../src/utils/logContext', async () => {
+  const actual = await vi.importActual<typeof import('../../src/utils/logContext')>('../../src/utils/logContext');
   return {
     ...actual,
     getLogContext: vi.fn(),

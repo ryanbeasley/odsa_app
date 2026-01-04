@@ -1,12 +1,23 @@
-import webPush from 'web-push';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestApp } from './helpers';
+import { createTestApp } from '../helpers';
 
 vi.mock('web-push', () => ({
   default: {
     setVapidDetails: vi.fn(),
     sendNotification: vi.fn(),
   },
+}));
+
+const { messagesCreate } = vi.hoisted(() => ({
+  messagesCreate: vi.fn(),
+}));
+
+vi.mock('twilio', () => ({
+  default: vi.fn(() => ({
+    messages: {
+      create: messagesCreate,
+    },
+  })),
 }));
 
 type CleanupFn = () => Promise<void>;
@@ -18,6 +29,9 @@ const captureEnv = () => ({
   EXPO_PUSH_ACCESS_TOKEN: process.env.EXPO_PUSH_ACCESS_TOKEN,
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
   VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY,
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER,
 });
 
 /**
@@ -42,7 +56,12 @@ describe('push service integration', () => {
   let cleanup: CleanupFn;
   let sendAnnouncementPush: (body: string) => Promise<void>;
   let processEventAlertNotifications: () => Promise<void>;
-  let createUser: (email: string, passwordHash: string, role: 'user' | 'admin') => { id: number };
+  let processEventAlertSMSNotifications: () => Promise<void>;
+  let createUser: (email: string | null, username: string, passwordHash: string, role: 'user' | 'admin') => { id: number };
+  let updateUserProfile: (
+    id: number,
+    updates: { phone?: string | null; event_alerts_sms_enabled?: number }
+  ) => { id: number } | undefined;
   let createWorkingGroup: (name: string, description: string, members: string) => { id: number };
   let createEvent: (
     name: string,
@@ -63,7 +82,11 @@ describe('push service integration', () => {
     options?: { announcementAlertsEnabled?: boolean; eventAlertsEnabled?: boolean }
   ) => void;
   let upsertWebPushSubscription: (userId: number, endpoint: string, p256dh: string, auth: string) => void;
-  let hasEventNotificationLog: (eventId: number, userId: number, notificationType: 'day-of' | 'hour-before') => boolean;
+  let hasEventNotificationLog: (
+    eventId: number,
+    userId: number,
+    notificationType: 'day-of' | 'hour-before' | 'sms-day-of' | 'sms-hour-before'
+  ) => boolean;
   let envSnapshot: Record<string, string | undefined>;
 
   /**
@@ -74,17 +97,22 @@ describe('push service integration', () => {
     process.env.EXPO_PUSH_ACCESS_TOKEN = 'test-expo-token';
     process.env.VAPID_PUBLIC_KEY = 'test-vapid-public';
     process.env.VAPID_PRIVATE_KEY = 'test-vapid-private';
+    process.env.TWILIO_ACCOUNT_SID = 'test-twilio-sid';
+    process.env.TWILIO_AUTH_TOKEN = 'test-twilio-auth';
+    process.env.TWILIO_PHONE_NUMBER = '+15550001111';
+    messagesCreate.mockReset();
 
     vi.resetModules();
     const setup = await createTestApp();
     cleanup = setup.cleanup;
 
-    ({ sendAnnouncementPush, processEventAlertNotifications } = await import('../src/services/pushService'));
-    ({ createUser } = await import('../src/repositories/userRepository'));
-    ({ createWorkingGroup } = await import('../src/repositories/workingGroupRepository'));
-    ({ createEvent, addEventAttendee } = await import('../src/repositories/eventRepository'));
-    ({ upsertPushSubscription } = await import('../src/repositories/pushSubscriptionRepository'));
-    ({ hasEventNotificationLog } = await import('../src/repositories/notificationRepository'));
+    ({ sendAnnouncementPush, processEventAlertNotifications, processEventAlertSMSNotifications } =
+      await import('../../src/services/pushService'));
+    ({ createUser, updateUserProfile } = await import('../../src/repositories/userRepository'));
+    ({ createWorkingGroup } = await import('../../src/repositories/workingGroupRepository'));
+    ({ createEvent, addEventAttendee } = await import('../../src/repositories/eventRepository'));
+    ({ upsertPushSubscription } = await import('../../src/repositories/pushSubscriptionRepository'));
+    ({ hasEventNotificationLog } = await import('../../src/repositories/notificationRepository'));
   });
 
   /**
@@ -110,8 +138,8 @@ describe('push service integration', () => {
     });
     vi.stubGlobal('fetch', fetchSpy as unknown as typeof fetch);
 
-    const userA = createUser('announce-a@example.com', 'hash', 'user');
-    const userB = createUser('announce-b@example.com', 'hash', 'user');
+    const userA = createUser('announce-a@example.com', 'announce-a', 'hash', 'user');
+    const userB = createUser('announce-b@example.com', 'announce-b', 'hash', 'user');
     upsertPushSubscription(userA.id, 'token-a', { announcementAlertsEnabled: true });
     upsertPushSubscription(userB.id, 'token-b', { announcementAlertsEnabled: false });
 
@@ -145,7 +173,7 @@ describe('push service integration', () => {
     });
     vi.stubGlobal('fetch', fetchSpy as unknown as typeof fetch);
 
-    const user = createUser('alerts@example.com', 'hash', 'user');
+    const user = createUser('alerts@example.com', 'alerts', 'hash', 'user');
     const group = createWorkingGroup('Alerts WG', 'Test working group', 'Members');
     const startAt = futureIso(30);
     const endAt = futureIso(90);
@@ -175,5 +203,47 @@ describe('push service integration', () => {
     expect(requestBody).toHaveLength(2);
     expect(hasEventNotificationLog(event.id, user.id, 'day-of')).toBe(true);
     expect(hasEventNotificationLog(event.id, user.id, 'hour-before')).toBe(true);
+  });
+
+  /**
+   * @given an attendee event within the SMS alert window
+   * @when processEventAlertSMSNotifications runs
+   * @then day-of and hour-before SMS reminders are sent and logged
+   */
+  it('sends SMS event alerts and logs them', async () => {
+    const user = createUser('sms@example.com', 'sms', 'hash', 'user');
+    updateUserProfile(user.id, { phone: '+15551234567', event_alerts_sms_enabled: 1 });
+    const group = createWorkingGroup('SMS WG', 'Test working group', 'Members');
+    const startAt = futureIso(30);
+    const endAt = futureIso(90);
+    const event = createEvent(
+      'Upcoming SMS meeting',
+      'Event with SMS alerts',
+      group.id,
+      startAt,
+      endAt,
+      'Conference room',
+      null,
+      null,
+      null,
+      null
+    );
+    addEventAttendee(user.id, event.id);
+
+    await processEventAlertSMSNotifications();
+
+    expect(messagesCreate).toHaveBeenCalledTimes(2);
+    expect(messagesCreate).toHaveBeenCalledWith({
+      from: '+15550001111',
+      to: '+15551234567',
+      body: 'Reminder: Upcoming SMS meeting is happening within the next 24 hours.',
+    });
+    expect(messagesCreate).toHaveBeenCalledWith({
+      from: '+15550001111',
+      to: '+15551234567',
+      body: 'You have an event starting soon: Upcoming SMS meeting.',
+    });
+    expect(hasEventNotificationLog(event.id, user.id, 'sms-day-of')).toBe(true);
+    expect(hasEventNotificationLog(event.id, user.id, 'sms-hour-before')).toBe(true);
   });
 });

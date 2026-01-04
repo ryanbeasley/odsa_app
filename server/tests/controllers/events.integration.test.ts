@@ -1,14 +1,14 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestApp } from './helpers';
-import { DiscordRecurrenceFrequency, DiscordWeekday } from '../src/services/discordTypes';
+import { createTestApp } from '../helpers';
+import { DiscordRecurrenceFrequency, DiscordWeekday } from '../../src/services/discordTypes';
 
-vi.mock('../src/services/discordService', () => ({
+vi.mock('../../src/services/discordService', () => ({
   createDiscordEventFromApp: vi.fn(async () => 'discord-123'),
   updateDiscordEventFromApp: vi.fn(async () => {}),
 }));
 
-import { createDiscordEventFromApp, updateDiscordEventFromApp } from '../src/services/discordService';
+import { createDiscordEventFromApp, updateDiscordEventFromApp } from '../../src/services/discordService';
 
 /**
  * Maps a Discord weekday index to the JavaScript weekday index.
@@ -34,9 +34,9 @@ describe('events integration', () => {
   let userToken: string;
   let workingGroupId: number;
 
-  const createUserToken = async (email: string) => {
+  const createUserToken = async (username: string) => {
     const response = await request(app).post('/api/signup').send({
-      email,
+      username,
       password: 'password123',
     });
     return response.body.token as string;
@@ -76,7 +76,7 @@ describe('events integration', () => {
     app = setup.app;
     cleanup = setup.cleanup;
     adminToken = await setup.getAdminToken();
-    userToken = await createUserToken('events-user@example.com');
+    userToken = await createUserToken('events-user');
     workingGroupId = await createWorkingGroup();
   });
 
