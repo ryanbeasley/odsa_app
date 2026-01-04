@@ -57,7 +57,6 @@ The server exposes:
 - `GET/POST /api/announcements` – list and create announcements (admin-only for create)
 - `GET/POST/PATCH/DELETE /api/support-links` – CRUD for support links (admin-only for mutations)
 - `POST/DELETE/GET /api/push-subscriptions` – register/unregister/check Expo (mobile) push tokens
-- `POST/DELETE/GET /api/web-push-subscriptions` – register/unregister/list browser push subscriptions
 - `GET /api/web-push/public-key` – fetch the VAPID public key for browser registration
 - `GET/POST /api/events` – list events and create new ones (admin-only for create)
 - `GET/POST /api/working-groups` – list working groups and create new ones (admin-only for create)
@@ -170,7 +169,6 @@ npx eas submit -p android --latest
 ### Push notifications
 
 - **Mobile (Expo):** On the Settings screen, toggle “Announcement alerts” to register the device’s Expo push token with the API (`/api/push-subscriptions`). The server will send Expo pushes to all registered tokens when an admin posts an announcement. Set `EXPO_PUSH_ACCESS_TOKEN` on the server to enable delivery.
-- **Web (browsers):** Browser push subscriptions are stored via `/api/web-push-subscriptions` (VAPID). Fetch the public key from `/api/web-push/public-key` when registering a service worker on the web client. Set `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` on the server to enable delivery.
 
 ## Next Steps
 

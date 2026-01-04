@@ -112,67 +112,6 @@ router.delete('/push-subscriptions', authenticate, (req: AuthedRequest, res) => 
 });
 
 /**
- * Registers or updates a web push subscription (VAPID) for the user.
- */
-router.post('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) => {
-  const { endpoint, keys } = req.body ?? {};
-  if (typeof endpoint !== 'string' || !endpoint.trim()) {
-    return res.status(400).json({ error: 'endpoint is required' });
-  }
-  if (!keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string') {
-    return res.status(400).json({ error: 'keys.p256dh and keys.auth are required' });
-  }
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const subscription = upsertWebPushSubscription(req.user.id, endpoint.trim(), keys.p256dh, keys.auth);
-  return res.status(201).json({ subscription: serializeWebPushSubscription(subscription) });
-});
-
-/**
- * Lists the user's web push subscriptions.
- */
-router.get('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const { id: userId } = req.user;
-  const subscriptions = listWebPushSubscriptions()
-    .filter((row) => row.user_id === userId)
-    .map(serializeWebPushSubscription);
-  return res.json({ subscriptions });
-});
-
-/**
- * Deletes the user's web push subscription by endpoint.
- */
-router.delete('/web-push-subscriptions', authenticate, (req: AuthedRequest, res) => {
-  const { endpoint } = req.body ?? {};
-  if (typeof endpoint !== 'string' || !endpoint.trim()) {
-    return res.status(400).json({ error: 'endpoint is required' });
-  }
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const existing = findWebPushSubscriptionByEndpoint(endpoint.trim());
-  if (!existing || existing.user_id !== req.user.id) {
-    return res.status(404).json({ error: 'Subscription not found' });
-  }
-  deleteWebPushSubscription(endpoint.trim());
-  return res.status(204).send();
-});
-
-/**
- * Returns the VAPID public key used for web push subscriptions.
- */
-router.get('/web-push/public-key', (_req, res) => {
-  if (!VAPID_PUBLIC_KEY) {
-    return res.status(404).json({ error: 'Web push not configured' });
-  }
-  return res.json({ publicKey: VAPID_PUBLIC_KEY });
-});
-
-/**
  * Lists users (admin only) with optional search query.
  */
 router.get('/users', authenticate, requireAdmin, (req: AuthedRequest, res) => {

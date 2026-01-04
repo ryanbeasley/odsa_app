@@ -38,7 +38,7 @@ router.get('/announcements', authenticate, (req, res) => {
   const rows = listAnnouncements(limit, cursor);
   const announcements = rows.map(serializeAnnouncement);
   const nextCursor = rows.length === limit ? rows[rows.length - 1].id : null;
-
+  console.log(`Fetched ${rows.length} announcements (limit: ${limit}, cursor: ${cursor ?? 'none'})`);
   res.json({ announcements, nextCursor });
 });
 
@@ -46,27 +46,6 @@ router.get('/announcements', authenticate, (req, res) => {
  * Allows admins to create a new announcement.
  */
 router.post('/announcements', authenticate, requireAdmin, (req: AuthedRequest, res) => {
-  const { message } = req.body ?? {};
-  if (typeof message !== 'string' || !message.trim()) {
-    return res.status(400).json({ error: 'message must be a non-empty string' });
-  }
-  const announcement = createAnnouncement(message.trim());
-  void sendAnnouncementPush(announcement.body);
-  res.status(201).json({ announcement: serializeAnnouncement(announcement) });
-});
-
-/**
- * Legacy helper route returning a capped announcement list.
- */
-router.get('/hello', authenticate, (req, res) => {
-  const rows = listAnnouncements(5);
-  res.json({ announcements: rows.map(serializeAnnouncement), nextCursor: null });
-});
-
-/**
- * Legacy helper route for creating announcements.
- */
-router.post('/hello', authenticate, requireAdmin, (req, res) => {
   const { message } = req.body ?? {};
   if (typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'message must be a non-empty string' });

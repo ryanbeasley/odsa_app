@@ -10,6 +10,7 @@ export function upsertWebPushSubscription(
   p256dh: string,
   auth: string
 ): WebPushSubscriptionRow {
+  console.logEnter();
   const existing = db
     .prepare<[string], WebPushSubscriptionRow>('SELECT * FROM web_push_subscriptions WHERE endpoint = ?')
     .get(endpoint);
@@ -33,6 +34,7 @@ export function upsertWebPushSubscription(
  * Removes a web push subscription by endpoint.
  */
 export function deleteWebPushSubscription(endpoint: string): void {
+  console.logEnter();
   db.prepare<[string]>('DELETE FROM web_push_subscriptions WHERE endpoint = ?').run(endpoint);
 }
 
@@ -40,6 +42,7 @@ export function deleteWebPushSubscription(endpoint: string): void {
  * Lists all stored web push subscriptions.
  */
 export function listWebPushSubscriptions(): WebPushSubscriptionRow[] {
+  console.logEnter();
   return db.prepare<[], WebPushSubscriptionRow>('SELECT * FROM web_push_subscriptions').all();
 }
 
@@ -47,5 +50,6 @@ export function listWebPushSubscriptions(): WebPushSubscriptionRow[] {
  * Looks up a subscription by endpoint.
  */
 export function findWebPushSubscriptionByEndpoint(endpoint: string): WebPushSubscriptionRow | undefined {
+  console.logEnter();
   return db.prepare<[string], WebPushSubscriptionRow>('SELECT * FROM web_push_subscriptions WHERE endpoint = ?').get(endpoint);
 }

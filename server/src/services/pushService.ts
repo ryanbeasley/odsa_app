@@ -32,17 +32,20 @@ export async function dispatchExpoPushMessages(messages: ExpoPushMessage[]) {
         },
         body: JSON.stringify(batch),
       });
+      console.debug(`Dispatched ${batch.length} push notifications`);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to send push notifications', err);
     }
   }
+  console.log(`Dispatched total of ${messages.length} push notifications`);
 }
 
 /**
  * Sends announcement notifications via native and web push.
  */
 export async function sendAnnouncementPush(body: string) {
+  console.logEnter();
   const subscribers = listPushSubscriptions().filter((row) => row.announcement_alerts_enabled);
   const messages = subscribers.map((row) => ({
     to: row.token,
@@ -75,6 +78,7 @@ export async function sendAnnouncementPush(body: string) {
  * Generates and sends event reminders for upcoming attendee events.
  */
 export async function processEventAlertNotifications() {
+  console.logEnter();
   if (!EXPO_PUSH_TOKEN) {
     return;
   }
