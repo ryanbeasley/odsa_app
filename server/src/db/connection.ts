@@ -77,9 +77,22 @@ function ensureTables() {
     `CREATE TABLE IF NOT EXISTS announcements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       body TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      user_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )`
   ).run();
+
+  db.prepare(
+    `CREATE TABLE IF NOT EXISTS tags (
+      entity_type TEXT NOT NULL CHECK (entity_type IN ('announcement', 'event')),
+      entity_id INTEGER NOT NULL,
+      tag_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (entity_type, entity_id, tag_name)
+    )`
+  ).run();
+  db.prepare('CREATE INDEX IF NOT EXISTS tags_tag_name_idx ON tags(tag_name)').run();
 
   db.prepare(
     `CREATE TABLE IF NOT EXISTS support_links (
@@ -174,6 +187,12 @@ function ensureTables() {
  * Applies schema migrations such as adding new columns.
  */
 function runMigrations() {
+  const announcementColumns = db.prepare<[], { name: string }>('PRAGMA table_info(announcements)').all();
+  if (!announcementColumns.some((col) => col.name === 'user_id')) {
+    db.prepare('ALTER TABLE announcements ADD COLUMN user_id INTEGER').run();
+  }
+  db.prepare('CREATE INDEX IF NOT EXISTS announcements_user_id_idx ON announcements(user_id)').run();
+
   const supportLinksColumns = db.prepare<[], { name: string }>('PRAGMA table_info(support_links)').all();
   if (!supportLinksColumns.some((col) => col.name === 'position')) {
     db.prepare('ALTER TABLE support_links ADD COLUMN position INTEGER NOT NULL DEFAULT 0').run();

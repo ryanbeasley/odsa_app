@@ -20,6 +20,8 @@ export type Announcement = {
   id: number;
   body: string;
   createdAt: string;
+  tags: string[];
+  authorUsername: string | null;
 };
 
 export type AnnouncementsResponse = {
@@ -29,6 +31,10 @@ export type AnnouncementsResponse = {
 
 export type AnnouncementCreateResponse = {
   announcement: Announcement;
+};
+
+export type TagsResponse = {
+  tags: string[];
 };
 
 export type SupportLink = {

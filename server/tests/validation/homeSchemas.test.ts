@@ -15,11 +15,16 @@ describe('homeSchemas', () => {
 
   it('parses announcement payloads', () => {
     const result = announcementSchema.parse({ message: 'Hello' });
-    expect(result).toEqual({ message: 'Hello' });
+    expect(result).toEqual({ message: 'Hello', tags: undefined });
   });
 
   it('rejects invalid announcement payloads', () => {
     expect(() => announcementSchema.parse({ message: '' })).toThrow('message must be a non-empty string');
+  });
+
+  it('parses announcement tags', () => {
+    const result = announcementSchema.parse({ message: 'Hello', tags: ['Urgent', '  Update ', 'Urgent'] });
+    expect(result).toEqual({ message: 'Hello', tags: ['Urgent', 'Update'] });
   });
 
   it('parses support link payloads', () => {

@@ -35,11 +35,25 @@ export function AnnouncementsScreen() {
   const [linkLabel, setLinkLabel] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState('');
+  const [tagLoadError, setTagLoadError] = useState<string | null>(null);
   const hasMore = announcementsState.hasMore;
+  const draftTags = announcementsState.draftTags;
+  const loadTagSuggestions = announcementsState.loadTagSuggestions;
   const canSave = useMemo(
     () => Boolean(isViewingAsAdmin && announcementsState.draft.trim() && !announcementsState.saving),
     [announcementsState.draft, announcementsState.saving, isViewingAsAdmin]
   );
+  const filteredTagSuggestions = useMemo(() => {
+    const query = tagInput.trim().toLowerCase();
+    if (!query) {
+      return [];
+    }
+    const existing = new Set(draftTags.map((tag) => tag.toLowerCase()));
+    return announcementsState.tagSuggestions.filter(
+      (tag) => tag.toLowerCase().includes(query) && !existing.has(tag.toLowerCase())
+    );
+  }, [announcementsState.tagSuggestions, draftTags, tagInput]);
 
   const triggerLoadMore = useCallback(() => {
     if (!hasMore || isFetchingMore) {
@@ -54,6 +68,17 @@ export function AnnouncementsScreen() {
       setIsFetchingMore(false);
     }
   }, [announcementsState.loadingMore]);
+
+  useEffect(() => {
+    if (!isViewingAsAdmin) {
+      return;
+    }
+    loadTagSuggestions()
+      .then(() => setTagLoadError(null))
+      .catch((error) => {
+        setTagLoadError(error instanceof Error ? error.message : 'Failed to load tags');
+      });
+  }, [isViewingAsAdmin, loadTagSuggestions]);
 
   useEffect(() => {
     if (
@@ -98,6 +123,30 @@ export function AnnouncementsScreen() {
       // handled downstream
     }
   };
+
+  const handleAddTag = useCallback(
+    (value?: string) => {
+      const nextTag = (value ?? tagInput).trim();
+      if (!nextTag) {
+        return;
+      }
+      const lower = nextTag.toLowerCase();
+      if (draftTags.some((tag) => tag.toLowerCase() === lower)) {
+        setTagInput('');
+        return;
+      }
+      announcementsState.setDraftTags([...draftTags, nextTag]);
+      setTagInput('');
+    },
+    [announcementsState, draftTags, tagInput]
+  );
+
+  const handleRemoveTag = useCallback(
+    (value: string) => {
+      announcementsState.setDraftTags(draftTags.filter((tag) => tag !== value));
+    },
+    [announcementsState, draftTags]
+  );
 
   /**
    * Opens the link composer modal with a blank state.
@@ -184,7 +233,23 @@ export function AnnouncementsScreen() {
         <View style={styles.announcementBody}>
           {announcementsState.announcements.map((announcement) => (
             <View key={announcement.id} style={styles.announcementItem}>
-              <Text style={styles.timestamp}>{formatTimestamp(announcement.createdAt)}</Text>
+              <View style={styles.announcementHeader}>
+                <View style={styles.headerRow}>
+                  <Text style={styles.timestamp}>{formatTimestamp(announcement.createdAt)}</Text>
+                  {announcement.authorUsername ? (
+                    <Text style={styles.authorText}>by {announcement.authorUsername}</Text>
+                  ) : null}
+                </View>
+                {announcement.tags?.length ? (
+                  <View style={styles.tagRow}>
+                    {announcement.tags.map((tag) => (
+                      <View key={tag} style={styles.tagPill}>
+                        <Text style={styles.tagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
               {renderAnnouncementMessage(announcement.body, handleMessageLinkPress)}
             </View>
           ))}
@@ -230,6 +295,52 @@ export function AnnouncementsScreen() {
                 placeholder="Type a quick announcement..."
                 multiline
               />
+              <View style={styles.tagComposer}>
+                <TextField
+                  label="Tags"
+                  value={tagInput}
+                  onChangeText={setTagInput}
+                  editable={!announcementsState.saving}
+                  placeholder="Add a tag"
+                  onSubmitEditing={() => handleAddTag()}
+                />
+                <TouchableOpacity
+                  style={styles.tagAddButton}
+                  onPress={() => handleAddTag()}
+                  disabled={announcementsState.saving}
+                >
+                  <Feather name="plus" size={16} color={colors.primary} />
+                  <Text style={styles.tagAddLabel}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              {filteredTagSuggestions.length ? (
+                <View style={styles.tagSuggestions}>
+                  {filteredTagSuggestions.map((tag) => (
+                    <TouchableOpacity
+                      key={tag}
+                      style={styles.tagSuggestionItem}
+                      onPress={() => handleAddTag(tag)}
+                    >
+                      <Text style={styles.tagSuggestionText}>{tag}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+              {tagLoadError ? <Text style={styles.error}>{tagLoadError}</Text> : null}
+              {draftTags.length ? (
+                <View style={styles.tagRow}>
+                  {draftTags.map((tag) => (
+                    <TouchableOpacity
+                      key={tag}
+                      style={styles.tagPill}
+                      onPress={() => handleRemoveTag(tag)}
+                    >
+                      <Text style={styles.tagText}>{tag}</Text>
+                      <Feather name="x" size={12} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
               {announcementsState.error ? <Text style={styles.error}>{announcementsState.error}</Text> : null}
               <PrimaryButton
                 label="Save announcement"

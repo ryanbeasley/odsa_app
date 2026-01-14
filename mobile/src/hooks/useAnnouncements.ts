@@ -4,6 +4,7 @@ import {
   Announcement,
   AnnouncementCreateResponse,
   AnnouncementsResponse,
+  TagsResponse,
 } from '../types';
 
 const PAGE_SIZE = 5;
@@ -19,11 +20,13 @@ type FetchOptions = {
 export function useAnnouncements(token: string | null) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [draft, setDraft] = useState('');
+  const [draftTags, setDraftTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
 
   /**
    * Resets hook state when the user logs out or token changes.
@@ -31,11 +34,13 @@ export function useAnnouncements(token: string | null) {
   const resetState = useCallback(() => {
     setAnnouncements([]);
     setDraft('');
+    setDraftTags([]);
     setNextCursor(null);
     setError(null);
     setLoading(false);
     setSaving(false);
     setLoadingMore(false);
+    setTagSuggestions([]);
   }, []);
 
   /**
@@ -135,7 +140,7 @@ export function useAnnouncements(token: string | null) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: draft.trim() }),
+        body: JSON.stringify({ message: draft.trim(), tags: draftTags }),
       });
 
       console.log('[useAnnouncements] announcement response', response.status);
@@ -146,6 +151,7 @@ export function useAnnouncements(token: string | null) {
       const data = (await response.json()) as AnnouncementCreateResponse;
       setAnnouncements((prev) => [data.announcement, ...prev]);
       setDraft('');
+      setDraftTags([]);
       console.log('[useAnnouncements] announcement saved', data.announcement.id);
     } catch (err) {
       console.error('[useAnnouncements] failed to save announcement', err);
@@ -154,7 +160,26 @@ export function useAnnouncements(token: string | null) {
     } finally {
       setSaving(false);
     }
-  }, [draft, token]);
+  }, [draft, draftTags, token]);
+
+  /**
+   * Loads tag suggestions for autocomplete.
+   */
+  const loadTagSuggestions = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    const response = await fetch(`${SERVER_URL}/api/tags`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Request failed (${response.status})`);
+    }
+    const data = (await response.json()) as TagsResponse;
+    setTagSuggestions(data.tags);
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -169,6 +194,10 @@ export function useAnnouncements(token: string | null) {
     announcements,
     draft,
     setDraft,
+    draftTags,
+    setDraftTags,
+    tagSuggestions,
+    loadTagSuggestions,
     loading,
     saving,
     loadingMore,

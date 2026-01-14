@@ -27,11 +27,15 @@ export function toPublicUser(user: UserRow) {
 /**
  * Converts an announcement row to API format.
  */
-export function serializeAnnouncement(row: AnnouncementRow) {
+export function serializeAnnouncement(
+  row: AnnouncementRow & { tags?: string[]; author_username?: string | null }
+) {
   return {
     id: row.id,
     body: row.body,
     createdAt: new Date(row.created_at).toISOString(),
+    tags: row.tags ?? [],
+    authorUsername: row.author_username ?? null,
   };
 }
 

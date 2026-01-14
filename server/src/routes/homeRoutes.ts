@@ -4,6 +4,7 @@ import { announcementQuerySchema, supportLinkIdSchema } from '../validation/home
 import {
   getAnnouncements,
   createAnnouncementHandler,
+  listTagsHandler,
   listSupportLinksHandler,
   createSupportLinkHandler,
   reorderSupportLinksHandler,
@@ -25,6 +26,7 @@ export const homeRoutes: RouteDefinition[] = [
     schema: announcementSchema,
     admin: true,
   },
+  { method: 'GET', path: '/tags', handler: listTagsHandler },
   { method: 'GET', path: '/support-links', handler: listSupportLinksHandler },
   {
     method: 'POST',

@@ -3,6 +3,7 @@ export type Role = 'user' | 'admin';
 export type AnnouncementRow = {
   id: number;
   body: string;
+  user_id: number | null;
   created_at: string;
 };
 

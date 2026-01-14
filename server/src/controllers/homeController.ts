@@ -1,5 +1,7 @@
 import { RequestHandler } from 'express';
+import { RequestUser } from '../middleware/authenticate';
 import { createAnnouncement, listAnnouncements } from '../repositories/announcementRepository';
+import { listDistinctTags } from '../repositories/tagRepository';
 import {
   createSupportLink,
   deleteSupportLink,
@@ -28,10 +30,19 @@ export const getAnnouncements: RequestHandler = (req, res) => {
  * Allows admins to create a new announcement.
  */
 export const createAnnouncementHandler: RequestHandler = (req, res) => {
-  const { message } = req.validated as AnnouncementPayload;
-  const announcement = createAnnouncement(message);
+  const { message, tags } = req.validated as AnnouncementPayload;
+  const user = req.user as RequestUser;
+  const announcement = createAnnouncement(message, user.id, tags ?? []);
   void sendAnnouncementPush(announcement.body);
   return res.status(201).json({ announcement: serializeAnnouncement(announcement) });
+};
+
+/**
+ * Lists all distinct tags for autocomplete.
+ */
+export const listTagsHandler: RequestHandler = (_req, res) => {
+  const tags = listDistinctTags();
+  return res.json({ tags });
 };
 
 /**

@@ -37,8 +37,9 @@ describe('homeController integration', () => {
     const first = await request(app)
       .post('/api/announcements')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ message: 'First announcement' });
+      .send({ message: 'First announcement', tags: ['urgent', 'meeting'] });
     expect(first.status).toBe(201);
+    expect(first.body.announcement.authorUsername).toBe('admin');
 
     const second = await request(app)
       .post('/api/announcements')
@@ -53,6 +54,7 @@ describe('homeController integration', () => {
     expect(pageOne.status).toBe(200);
     expect(pageOne.body.announcements).toHaveLength(1);
     expect(pageOne.body.announcements[0].body).toBe('Second announcement');
+    expect(pageOne.body.announcements[0].authorUsername).toBe('admin');
     expect(pageOne.body.nextCursor).toBeTruthy();
 
     const pageTwo = await request(app)
@@ -62,6 +64,8 @@ describe('homeController integration', () => {
     expect(pageTwo.status).toBe(200);
     expect(pageTwo.body.announcements).toHaveLength(1);
     expect(pageTwo.body.announcements[0].body).toBe('First announcement');
+    expect(pageTwo.body.announcements[0].tags).toEqual(['meeting', 'urgent']);
+    expect(pageTwo.body.announcements[0].authorUsername).toBe('admin');
     expect(pageTwo.body.nextCursor).toBeTruthy();
 
     const pageThree = await request(app)
@@ -70,6 +74,14 @@ describe('homeController integration', () => {
     expect(pageThree.status).toBe(200);
     expect(pageThree.body.announcements).toHaveLength(0);
     expect(pageThree.body.nextCursor).toBeNull();
+  });
+
+  it('lists distinct tags for autocomplete', async () => {
+    const response = await request(app)
+      .get('/api/tags')
+      .set('Authorization', `Bearer ${userToken}`);
+    expect(response.status).toBe(200);
+    expect(response.body.tags).toEqual(['meeting', 'urgent']);
   });
 
   it('prevents non-admins from creating announcements', async () => {

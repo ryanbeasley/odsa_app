@@ -30,11 +30,25 @@ export const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: spacing.xs,
   },
+  announcementHeader: {
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   timestamp: {
     fontSize: 12,
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  authorText: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   message: {
     fontSize: 16,
@@ -71,6 +85,64 @@ export const styles = StyleSheet.create({
   input: {
     minHeight: 90,
     textAlignVertical: 'top',
+  },
+  tagComposer: {
+    gap: spacing.xs,
+  },
+  tagAddButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(234,35,41,0.08)',
+  },
+  tagAddLabel: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tagSuggestions: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  tagSuggestionItem: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  tagSuggestionText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  tagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+  },
+  tagText: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '600',
   },
   error: {
     color: colors.error,
