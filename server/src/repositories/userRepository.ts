@@ -1,5 +1,5 @@
 import { db } from '../db/connection';
-import { Role, UserRow } from '../types';
+import { EmergencyAnnouncementSmsRecipientRow, Role, UserRow } from '../types';
 
 /**
  * Finds a user row by email address.
@@ -73,6 +73,7 @@ export function updateUserProfile(
     phone?: string | null;
     username?: string;
     event_alerts_sms_enabled?: number;
+    emergency_announcements_sms_enabled?: number;
   }
 ): UserRow | undefined {
   console.logEnter();
@@ -102,6 +103,10 @@ export function updateUserProfile(
     fields.push('event_alerts_sms_enabled = ?');
     values.push(updates.event_alerts_sms_enabled);
   }
+  if (updates.emergency_announcements_sms_enabled !== undefined) {
+    fields.push('emergency_announcements_sms_enabled = ?');
+    values.push(updates.emergency_announcements_sms_enabled);
+  }
   if (!fields.length) {
     return findUserById(id);
   }
@@ -117,4 +122,20 @@ export function updateUserRole(id: number, role: Role): UserRow | undefined {
   console.logEnter();
   db.prepare<[Role, number]>('UPDATE users SET role = ? WHERE id = ?').run(role, id);
   return findUserById(id);
+}
+
+/**
+ * Lists users opted into emergency announcement SMS alerts.
+ */
+export function listEmergencyAnnouncementSmsRecipients(): EmergencyAnnouncementSmsRecipientRow[] {
+  console.logEnter();
+  return db
+    .prepare<[], EmergencyAnnouncementSmsRecipientRow>(
+      `SELECT id as user_id, phone
+       FROM users
+       WHERE emergency_announcements_sms_enabled = 1
+         AND phone IS NOT NULL
+         AND TRIM(phone) <> ''`
+    )
+    .all();
 }

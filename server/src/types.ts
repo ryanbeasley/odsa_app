@@ -113,6 +113,11 @@ export type EventAlertSmsCandidateRow = {
   phone: string;
 };
 
+export type EmergencyAnnouncementSmsRecipientRow = {
+  user_id: number;
+  phone: string;
+};
+
 export type EventNotificationType = 'day-of' | 'hour-before' | 'sms-day-of' | 'sms-hour-before';
 
 export interface UserRow {
@@ -125,6 +130,7 @@ export interface UserRow {
   phone: string | null;
   email: string | null;
   event_alerts_sms_enabled: number;
+  emergency_announcements_sms_enabled: number;
 }
 
 export type RecurrenceRule = 'none' | 'daily' | 'weekly' | 'monthly';

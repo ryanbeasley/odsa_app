@@ -115,7 +115,8 @@ function ensureTables() {
       first_name TEXT,
       last_name TEXT,
       phone TEXT,
-      event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0
+      event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0,
+      emergency_announcements_sms_enabled INTEGER NOT NULL DEFAULT 0
     )`
   ).run();
 
@@ -236,21 +237,24 @@ function runMigrations() {
         first_name TEXT,
         last_name TEXT,
         phone TEXT,
-        event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0
+        event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0,
+        emergency_announcements_sms_enabled INTEGER NOT NULL DEFAULT 0
       )`
     );
     const hasFirstName = userColumns.some((col) => col.name === 'first_name');
     const hasLastName = userColumns.some((col) => col.name === 'last_name');
     const hasPhone = userColumns.some((col) => col.name === 'phone');
     const hasSmsEnabled = userColumns.some((col) => col.name === 'event_alerts_sms_enabled');
+    const hasEmergencySmsEnabled = userColumns.some((col) => col.name === 'emergency_announcements_sms_enabled');
     const usernameColumn = hasUsername ? 'username' : "''";
     const firstNameColumn = hasFirstName ? 'first_name' : 'NULL';
     const lastNameColumn = hasLastName ? 'last_name' : 'NULL';
     const phoneColumn = hasPhone ? 'phone' : 'NULL';
     const smsColumn = hasSmsEnabled ? 'event_alerts_sms_enabled' : '0';
+    const emergencySmsColumn = hasEmergencySmsEnabled ? 'emergency_announcements_sms_enabled' : '0';
     db.exec(
-      `INSERT INTO users_next (id, email, password_hash, role, username, first_name, last_name, phone, event_alerts_sms_enabled)
-       SELECT id, email, password_hash, role, ${usernameColumn}, ${firstNameColumn}, ${lastNameColumn}, ${phoneColumn}, ${smsColumn}
+      `INSERT INTO users_next (id, email, password_hash, role, username, first_name, last_name, phone, event_alerts_sms_enabled, emergency_announcements_sms_enabled)
+       SELECT id, email, password_hash, role, ${usernameColumn}, ${firstNameColumn}, ${lastNameColumn}, ${phoneColumn}, ${smsColumn}, ${emergencySmsColumn}
        FROM users`
     );
     db.exec('DROP TABLE users');
@@ -270,6 +274,9 @@ function runMigrations() {
   }
   if (!userColumns.some((col) => col.name === 'event_alerts_sms_enabled')) {
     db.prepare('ALTER TABLE users ADD COLUMN event_alerts_sms_enabled INTEGER NOT NULL DEFAULT 0').run();
+  }
+  if (!userColumns.some((col) => col.name === 'emergency_announcements_sms_enabled')) {
+    db.prepare('ALTER TABLE users ADD COLUMN emergency_announcements_sms_enabled INTEGER NOT NULL DEFAULT 0').run();
   }
   if (!userColumns.some((col) => col.name === 'username')) {
     db.prepare('ALTER TABLE users ADD COLUMN username TEXT').run();

@@ -46,10 +46,15 @@ export const updateProfileHandler: RequestHandler = (req: AuthedRequest, res) =>
  */
 export const upsertSmsSubscriptionHandler: RequestHandler = (req: AuthedRequest, res) => {
   const user = req.user as RequestUser;
-  const { eventAlertsSmsEnabled } = req.validated as SmsPushSubscriptionPayload;
-  const updated = updateUserProfile(user.id, {
-    event_alerts_sms_enabled: eventAlertsSmsEnabled ? 1 : 0,
-  });
+  const { eventAlertsSmsEnabled, emergencyAnnouncementsSmsEnabled } = req.validated as SmsPushSubscriptionPayload;
+  const updates: Parameters<typeof updateUserProfile>[1] = {};
+  if (typeof eventAlertsSmsEnabled === 'boolean') {
+    updates.event_alerts_sms_enabled = eventAlertsSmsEnabled ? 1 : 0;
+  }
+  if (typeof emergencyAnnouncementsSmsEnabled === 'boolean') {
+    updates.emergency_announcements_sms_enabled = emergencyAnnouncementsSmsEnabled ? 1 : 0;
+  }
+  const updated = updateUserProfile(user.id, updates);
   if (!updated) {
     throw new Error('Failed to update user SMS subscription');
   }

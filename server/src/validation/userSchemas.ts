@@ -10,6 +10,7 @@ export type ProfileUpdates = {
   phone?: string | null;
   email?: string | null;
   event_alerts_sms_enabled?: number;
+  emergency_announcements_sms_enabled?: number;
   username?: string;
 };
 
@@ -17,6 +18,9 @@ export type ProfileUpdateResult = { updates: ProfileUpdates } | { error: string;
 
 export const profileUpdateSchema: Schema<ProfileUpdates> = {
   parse(input: unknown, req?: unknown) {
+    if (!req || !(req as AuthedRequest).user) {
+      throw new ValidationError('Unauthorized', 401);
+    }
     const result = buildProfileUpdates(input);
     if ('error' in result) {
       throw new ValidationError(result.error, result.status);
@@ -71,7 +75,15 @@ function normalizePhoneToE164(value: string | null) {
 function buildProfileUpdates(
   body: unknown
 ): ProfileUpdateResult {
-  const { firstName, lastName, phone, email, eventAlertsSmsEnabled, username } = (body ?? {}) as Record<
+  const {
+    firstName,
+    lastName,
+    phone,
+    email,
+    eventAlertsSmsEnabled,
+    emergencyAnnouncementsSmsEnabled,
+    username,
+  } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -129,10 +141,8 @@ function buildProfileUpdates(
     updates.username = normalizedUsername;
   }
 
-  if (email === undefined) {
-    if (eventAlertsSmsEnabled === undefined) {
-      return { updates };
-    }
+  if (email === undefined && eventAlertsSmsEnabled === undefined && emergencyAnnouncementsSmsEnabled === undefined) {
+    return { updates };
   }
 
   if (eventAlertsSmsEnabled !== undefined) {
@@ -140,6 +150,12 @@ function buildProfileUpdates(
       return { error: 'SMS event alerts must be true or false', status: 400 };
     }
     updates.event_alerts_sms_enabled = eventAlertsSmsEnabled ? 1 : 0;
+  }
+  if (emergencyAnnouncementsSmsEnabled !== undefined) {
+    if (typeof emergencyAnnouncementsSmsEnabled !== 'boolean') {
+      return { error: 'SMS emergency alerts must be true or false', status: 400 };
+    }
+    updates.emergency_announcements_sms_enabled = emergencyAnnouncementsSmsEnabled ? 1 : 0;
   }
 
   if (email !== null && typeof email !== 'string') {

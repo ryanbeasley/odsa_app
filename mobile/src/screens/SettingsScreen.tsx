@@ -62,7 +62,24 @@ export function SettingsScreen() {
     try {
       setSmsSaving(true);
       setSmsError(null);
-      await auth.updateSmsSubscription(!accountUser.eventAlertsSmsEnabled);
+      await auth.updateSmsSubscription({ eventAlertsSmsEnabled: !accountUser.eventAlertsSmsEnabled });
+    } catch (error) {
+      setSmsError(error instanceof Error ? error.message : 'Failed to update SMS alerts');
+    } finally {
+      setSmsSaving(false);
+    }
+  };
+
+  const handleToggleEmergencySmsAlerts = async () => {
+    if (smsSaving) {
+      return;
+    }
+    try {
+      setSmsSaving(true);
+      setSmsError(null);
+      await auth.updateSmsSubscription({
+        emergencyAnnouncementsSmsEnabled: !accountUser.emergencyAnnouncementsSmsEnabled,
+      });
     } catch (error) {
       setSmsError(error instanceof Error ? error.message : 'Failed to update SMS alerts');
     } finally {
@@ -179,6 +196,9 @@ export function SettingsScreen() {
             smsEnabled={Boolean(accountUser.eventAlertsSmsEnabled)}
             smsStatusText={getSmsStatusText(Boolean(accountUser.eventAlertsSmsEnabled))}
             onToggleSms={handleToggleSmsAlerts}
+            emergencySmsEnabled={Boolean(accountUser.emergencyAnnouncementsSmsEnabled)}
+            emergencySmsStatusText={getSmsStatusText(Boolean(accountUser.emergencyAnnouncementsSmsEnabled))}
+            onToggleEmergencySms={handleToggleEmergencySmsAlerts}
             smsError={smsError}
           />
         </SectionCard>
@@ -217,6 +237,9 @@ type NotificationsSectionProps = {
   smsEnabled: boolean;
   smsStatusText: string;
   onToggleSms: () => void;
+  emergencySmsEnabled: boolean;
+  emergencySmsStatusText: string;
+  onToggleEmergencySms: () => void;
   smsError: string | null;
 };
 
@@ -227,6 +250,9 @@ function NotificationsSection({
   smsEnabled,
   smsStatusText,
   onToggleSms,
+  emergencySmsEnabled,
+  emergencySmsStatusText,
+  onToggleEmergencySms,
   smsError,
 }: NotificationsSectionProps) {
   return (
@@ -264,6 +290,27 @@ function NotificationsSection({
         onPress={onToggleSms}
         right={<Text style={[styles.statusBadge, !smsEnabled && styles.statusBadgeMuted]}>{smsStatusText}</Text>}
       />
+      <Text style={styles.optInText}>
+        By selecting this option and providing your phone number in your personal information, you agree to receive
+        ODSA SMS event alerts. Message and data rates may apply. Message frequency varies. Reply STOP to opt out, HELP
+        for help, or uncheck this option.
+      </Text>
+      <NavItem
+        icon={emergencySmsEnabled ? 'check-square' : 'square'}
+        label="SMS emergency announcements"
+        description="Receive a text any time an emergency announcement is posted."
+        onPress={onToggleEmergencySms}
+        right={
+          <Text style={[styles.statusBadge, !emergencySmsEnabled && styles.statusBadgeMuted]}>
+            {emergencySmsStatusText}
+          </Text>
+        }
+      />
+      <Text style={styles.optInText}>
+        By selecting this option and providing your phone number in your personal information, you agree to receive
+        ODSA emergency announcement texts. Message and data rates may apply. Message frequency varies. Reply STOP to
+        opt out, HELP for help, or uncheck this option.
+      </Text>
       {push.error ? <Text style={styles.errorText}>{push.error}</Text> : null}
       {smsError ? <Text style={styles.errorText}>{smsError}</Text> : null}
     </View>

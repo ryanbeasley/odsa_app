@@ -85,6 +85,11 @@ export const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 12,
   },
+  optInText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   logoutItem: {
     backgroundColor: colors.surface,
     borderColor: colors.error,

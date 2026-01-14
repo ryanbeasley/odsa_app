@@ -10,7 +10,7 @@ import {
   updateSupportLink,
 } from '../repositories/supportLinkRepository';
 import { serializeAnnouncement, serializeSupportLink } from '../utils/serializer';
-import { sendAnnouncementPush } from '../services/pushService';
+import { sendAnnouncementPush, sendEmergencyAnnouncementSms } from '../services/pushService';
 import { AnnouncementPayload, SupportLinkPayload, SupportLinkReorderPayload } from '../validation/homeSchemas';
 import { AnnouncementQueryPayload, SupportLinkIdPayload } from '../validation/homeParamsSchemas';
 
@@ -33,7 +33,12 @@ export const createAnnouncementHandler: RequestHandler = (req, res) => {
   const { message, tags } = req.validated as AnnouncementPayload;
   const user = req.user as RequestUser;
   const announcement = createAnnouncement(message, user.id, tags ?? []);
+  const isEmergency =
+    tags?.some((tag) => tag.trim().toLowerCase() === 'emergency') ?? false;
   void sendAnnouncementPush(announcement.body);
+  if (isEmergency) {
+    void sendEmergencyAnnouncementSms(announcement.body);
+  }
   return res.status(201).json({ announcement: serializeAnnouncement(announcement) });
 };
 

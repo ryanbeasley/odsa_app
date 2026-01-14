@@ -24,6 +24,7 @@ type ProfilePayload = {
   phone?: string | null;
   email?: string | null;
   eventAlertsSmsEnabled?: boolean;
+  emergencyAnnouncementsSmsEnabled?: boolean;
 };
 
 type AuthContextValue = {
@@ -41,7 +42,10 @@ type AuthContextValue = {
   toggleAdminMode: () => void;
   googleSignIn: () => Promise<void>;
   updateProfile: (payload: ProfilePayload) => Promise<void>;
-  updateSmsSubscription: (enabled: boolean) => Promise<void>;
+  updateSmsSubscription: (payload: {
+    eventAlertsSmsEnabled?: boolean;
+    emergencyAnnouncementsSmsEnabled?: boolean;
+  }) => Promise<void>;
   setAuthError: (value: string | null) => void;
 };
 
@@ -120,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSessionUser({
             ...parsedUser,
             eventAlertsSmsEnabled: Boolean(parsedUser.eventAlertsSmsEnabled),
+            emergencyAnnouncementsSmsEnabled: Boolean(parsedUser.emergencyAnnouncementsSmsEnabled),
             username: parsedUser.username ?? '',
           });
         }
@@ -287,6 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: payload.phone ?? undefined,
         email: payload.email ?? undefined,
         eventAlertsSmsEnabled: payload.eventAlertsSmsEnabled ?? undefined,
+        emergencyAnnouncementsSmsEnabled: payload.emergencyAnnouncementsSmsEnabled ?? undefined,
       }),
     });
     if (!response.ok) {
@@ -303,9 +309,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * Updates the user's SMS event alert preference.
    */
-  const updateSmsSubscription = async (enabled: boolean) => {
+  const updateSmsSubscription = async (payload: {
+    eventAlertsSmsEnabled?: boolean;
+    emergencyAnnouncementsSmsEnabled?: boolean;
+  }) => {
     if (!token) {
       throw new Error('You must be signed in to manage SMS alerts.');
+    }
+    if (payload.eventAlertsSmsEnabled === undefined && payload.emergencyAnnouncementsSmsEnabled === undefined) {
+      throw new Error('No SMS subscription updates were provided.');
     }
     const response = await fetch(`${SERVER_URL}/api/sms-subscriptions`, {
       method: 'POST',
@@ -313,7 +325,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ eventAlertsSmsEnabled: enabled }),
+      body: JSON.stringify({
+        eventAlertsSmsEnabled: payload.eventAlertsSmsEnabled ?? undefined,
+        emergencyAnnouncementsSmsEnabled: payload.emergencyAnnouncementsSmsEnabled ?? undefined,
+      }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));

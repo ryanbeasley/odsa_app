@@ -97,22 +97,59 @@ describe('settingsController integration', () => {
     expect(readAfter.body.subscription).toBeNull();
   });
 
-  it('updates SMS event alerts preference for a user', async () => {
+  it('updates SMS emergency announcements preference for a user', async () => {
     const enable = await request(app)
       .post('/api/sms-subscriptions')
       .set('Authorization', `Bearer ${userToken}`)
-      .send({ eventAlertsSmsEnabled: true });
+      .send({ emergencyAnnouncementsSmsEnabled: true });
 
     expect(enable.status).toBe(200);
-    expect(enable.body.user.eventAlertsSmsEnabled).toBe(true);
+    expect(enable.body.user.emergencyAnnouncementsSmsEnabled).toBe(true);
 
     const disable = await request(app)
       .post('/api/sms-subscriptions')
       .set('Authorization', `Bearer ${userToken}`)
-      .send({ eventAlertsSmsEnabled: false });
+      .send({ emergencyAnnouncementsSmsEnabled: false });
+
+    expect(disable.status).toBe(200);
+    expect(disable.body.user.emergencyAnnouncementsSmsEnabled).toBe(false);
+  });
+
+  it('updates both SMS event alerts and emergency announcement preferences for a user', async () => {
+    const enable = await request(app)
+      .post('/api/sms-subscriptions')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ eventAlertsSmsEnabled: true, emergencyAnnouncementsSmsEnabled: true });
+
+    expect(enable.status).toBe(200);
+    expect(enable.body.user.eventAlertsSmsEnabled).toBe(true);
+    expect(enable.body.user.emergencyAnnouncementsSmsEnabled).toBe(true);
+
+    const disable = await request(app)
+      .post('/api/sms-subscriptions')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ eventAlertsSmsEnabled: false, emergencyAnnouncementsSmsEnabled: false });
 
     expect(disable.status).toBe(200);
     expect(disable.body.user.eventAlertsSmsEnabled).toBe(false);
+    expect(disable.body.user.emergencyAnnouncementsSmsEnabled).toBe(false);
+  });
+
+  it('rejects SMS subscription updates without any flags', async () => {
+    const response = await request(app)
+      .post('/api/sms-subscriptions')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('eventAlertsSmsEnabled or emergencyAnnouncementsSmsEnabled is required');
+  });
+
+  it('rejects SMS subscription updates without authentication', async () => {
+    const response = await request(app).post('/api/sms-subscriptions').send({ eventAlertsSmsEnabled: true });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe('Authorization token required');
   });
 
   it('returns 404 when web push public key is not configured', async () => {

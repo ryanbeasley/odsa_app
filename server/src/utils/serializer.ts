@@ -21,6 +21,7 @@ export function toPublicUser(user: UserRow) {
     lastName: user.last_name ?? null,
     phone: user.phone ?? null,
     eventAlertsSmsEnabled: Boolean(user.event_alerts_sms_enabled),
+    emergencyAnnouncementsSmsEnabled: Boolean(user.emergency_announcements_sms_enabled),
   };
 }
 

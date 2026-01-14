@@ -11,8 +11,13 @@ import {
   VAPID_PRIVATE_KEY,
   VAPID_PUBLIC_KEY,
 } from '../config/env';
-import { listPushSubscriptions, listEventAlertCandidates, listEventAlertSmsCandidates } from '../repositories/pushSubscriptionRepository';
+import {
+  listPushSubscriptions,
+  listEventAlertCandidates,
+  listEventAlertSmsCandidates,
+} from '../repositories/pushSubscriptionRepository';
 import { hasEventNotificationLog, recordEventNotificationLog } from '../repositories/notificationRepository';
+import { listEmergencyAnnouncementSmsRecipients } from '../repositories/userRepository';
 import { runWithLogContext, DEFAULT_LOG_PATH, buildLogContext } from '../utils/logContext';
 
 type ExpoPushMessage = { to: string; title: string; body: string };
@@ -67,6 +72,34 @@ export async function sendAnnouncementPush(body: string) {
     body,
   }));
   await dispatchExpoPushMessages(messages);
+}
+
+/**
+ * Sends emergency announcement notifications via SMS.
+ */
+export async function sendEmergencyAnnouncementSms(body: string) {
+  console.logEnter();
+  if (!twilioClient || !TWILIO_PHONE_NUMBER) {
+    return;
+  }
+  const recipients = listEmergencyAnnouncementSmsRecipients();
+  console.log(`Sending emergency announcement SMS to ${recipients.length} recipients`);
+  for (const recipient of recipients) {
+    const phone = recipient.phone.trim();
+    if (!phone.startsWith('+')) {
+      continue;
+    }
+    try {
+      await twilioClient.messages.create({
+        from: TWILIO_PHONE_NUMBER,
+        to: phone,
+        body,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to send emergency announcement SMS', err);
+    }
+  }
 }
 
 /**

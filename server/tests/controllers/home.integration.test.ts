@@ -1,6 +1,17 @@
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestApp } from '../helpers';
+import twilio from 'twilio';
+
+const messagesCreate = vi.fn().mockResolvedValue({});
+
+vi.mock('twilio', () => ({
+  default: vi.fn(() => ({
+    messages: {
+      create: messagesCreate,
+    },
+  })),
+}));
 
 describe('homeController integration', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>['app'];
@@ -17,11 +28,22 @@ describe('homeController integration', () => {
   };
 
   beforeAll(async () => {
-    const setup = await createTestApp();
+    const setup = await createTestApp({
+      env: {
+        TWILIO_ACCOUNT_SID: 'test-sid',
+        TWILIO_AUTH_TOKEN: 'test-token',
+        TWILIO_PHONE_NUMBER: '+15550001111',
+      },
+    });
     app = setup.app;
     cleanup = setup.cleanup;
     adminToken = await setup.getAdminToken();
     userToken = await createUserToken('user');
+  });
+
+  beforeEach(() => {
+    messagesCreate.mockClear();
+    vi.mocked(twilio).mockClear();
   });
 
   afterAll(async () => {
@@ -91,6 +113,33 @@ describe('homeController integration', () => {
       .send({ message: 'Not allowed' });
 
     expect(response.status).toBe(403);
+  });
+
+  it('sends emergency SMS when an announcement has the emergency tag', async () => {
+    const profileUpdate = await request(app)
+      .patch('/api/profile')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ phone: '+15551234567' });
+    expect(profileUpdate.status).toBe(200);
+
+    const smsUpdate = await request(app)
+      .post('/api/sms-subscriptions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ emergencyAnnouncementsSmsEnabled: true });
+    expect(smsUpdate.status).toBe(200);
+
+    const response = await request(app)
+      .post('/api/announcements')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ message: 'Emergency update', tags: ['Emergency'] });
+
+    expect(response.status).toBe(201);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(messagesCreate).toHaveBeenCalledWith({
+      from: '+15550001111',
+      to: '+15551234567',
+      body: 'Emergency update',
+    });
   });
 
   it('manages support links as admin', async () => {

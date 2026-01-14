@@ -9,6 +9,7 @@ export type User = {
   lastName: string | null;
   phone: string | null;
   eventAlertsSmsEnabled: boolean;
+  emergencyAnnouncementsSmsEnabled: boolean;
 };
 
 export type AuthResponse = {

@@ -8,7 +8,8 @@ export type PushSubscriptionPayload = {
 };
 
 export type SmsPushSubscriptionPayload = {
-  eventAlertsSmsEnabled: boolean;
+  eventAlertsSmsEnabled?: boolean;
+  emergencyAnnouncementsSmsEnabled?: boolean;
 };
 
 export const pushSubscriptionSchema: Schema<PushSubscriptionPayload> = {
@@ -33,11 +34,20 @@ export const pushSubscriptionSchema: Schema<PushSubscriptionPayload> = {
 
 export const smsPushSubscriptionSchema: Schema<SmsPushSubscriptionPayload> = {
   parse(input: unknown) {
-    const { eventAlertsSmsEnabled } = (input ?? {}) as Record<string, unknown>;
-    if (typeof eventAlertsSmsEnabled !== 'boolean') {
+    const { eventAlertsSmsEnabled, emergencyAnnouncementsSmsEnabled } = (input ?? {}) as Record<string, unknown>;
+    if (eventAlertsSmsEnabled === undefined && emergencyAnnouncementsSmsEnabled === undefined) {
+      throw new ValidationError('eventAlertsSmsEnabled or emergencyAnnouncementsSmsEnabled is required');
+    }
+    if (eventAlertsSmsEnabled !== undefined && typeof eventAlertsSmsEnabled !== 'boolean') {
       throw new ValidationError('eventAlertsSmsEnabled must be a boolean');
     }
-    return { eventAlertsSmsEnabled };
+    if (emergencyAnnouncementsSmsEnabled !== undefined && typeof emergencyAnnouncementsSmsEnabled !== 'boolean') {
+      throw new ValidationError('emergencyAnnouncementsSmsEnabled must be a boolean');
+    }
+    return {
+      eventAlertsSmsEnabled: eventAlertsSmsEnabled as boolean | undefined,
+      emergencyAnnouncementsSmsEnabled: emergencyAnnouncementsSmsEnabled as boolean | undefined,
+    };
   },
 };
 

@@ -17,6 +17,7 @@ describe('userSchemas', () => {
         phone: '(415) 555-0123',
         email: 'USER@Example.com',
         eventAlertsSmsEnabled: true,
+        emergencyAnnouncementsSmsEnabled: true,
         username: 'NewUser',
       },
       req
@@ -28,6 +29,7 @@ describe('userSchemas', () => {
       phone: '+14155550123',
       email: 'user@example.com',
       event_alerts_sms_enabled: 1,
+      emergency_announcements_sms_enabled: 1,
       username: 'newuser',
     });
   });
