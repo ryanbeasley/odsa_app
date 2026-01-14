@@ -27,6 +27,7 @@ jobs:
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           port: ${{ secrets.GCP_SSH_PORT || '22' }}
+          timeout: 30m
           command_timeout: 30m
           script: |
             set -e
