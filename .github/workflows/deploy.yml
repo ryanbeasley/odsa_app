@@ -76,11 +76,11 @@ jobs:
       - name: Build and submit iOS
         working-directory: mobile
         run: |
-          npx eas build -p ios --profile production --non-interactive
-          npx eas submit -p ios --latest --non-interactive
+          eas build -p ios --profile production --non-interactive
+          eas submit -p ios --latest --non-interactive
 
       - name: Build and submit Android
         working-directory: mobile
         run: |
-          npx eas build -p android --profile production --non-interactive
-          npx eas submit -p android --latest --non-interactive
+          eas build -p android --profile production --non-interactive
+          eas submit -p android --latest --non-interactive

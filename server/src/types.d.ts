@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type { Role } from './types';
 
 declare module 'bcryptjs' {
   export function hashSync(data: string, salt: number): string;
@@ -23,6 +24,11 @@ declare module 'express-serve-static-core' {
   interface Request {
     validated?: unknown;
     validatedQuery?: unknown;
+    user?: {
+      id: number;
+      username: string;
+      role: Role;
+    };
   }
 }
 
