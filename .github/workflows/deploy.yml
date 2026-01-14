@@ -1,0 +1,76 @@
+name: Deploy ODSA
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_server:
+        description: Deploy API server to the Google VM
+        type: boolean
+        default: true
+      deploy_mobile:
+        description: Build and submit iOS/Android with EAS
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Deploy server on Google VM
+        if: ${{ inputs.deploy_server }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_SSH_HOST }}
+          username: ${{ secrets.GCP_SSH_USER }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.GCP_SSH_PORT || '22' }}
+          script: |
+            set -e
+            cd /opt/odsa_app
+            git pull --ff-only
+            pkill -f "node /opt/odsa_app/server/dist/index.js" || true
+            cd /opt/odsa_app/server
+            npm install
+            npm run build
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 restart odsa-server
+            else
+              nohup npm start >/tmp/odsa_server.log 2>&1 &
+            fi
+
+      - name: Set up Node
+        if: ${{ inputs.deploy_mobile }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up Expo and EAS
+        if: ${{ inputs.deploy_mobile }}
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install mobile dependencies
+        if: ${{ inputs.deploy_mobile }}
+        working-directory: mobile
+        run: npm ci
+
+      - name: Build and submit iOS
+        if: ${{ inputs.deploy_mobile }}
+        working-directory: mobile
+        run: |
+          npx eas build -p ios --profile production --non-interactive
+          npx eas submit -p ios --latest --non-interactive
+
+      - name: Build and submit Android
+        if: ${{ inputs.deploy_mobile }}
+        working-directory: mobile
+        run: |
+          npx eas build -p android --profile production --non-interactive
+          npx eas submit -p android --latest --non-interactive
