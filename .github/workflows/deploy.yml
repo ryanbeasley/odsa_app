@@ -32,8 +32,10 @@ jobs:
             git config --global --add safe.directory /opt/odsa_app
             cd /opt/odsa_app
             STASH_NAME="deploy-artifacts"
-            git stash push -m "$STASH_NAME" -- server/data/app.db server/dist || true
-            git pull
+            if [ -n "$(git status --porcelain)" ]; then
+              git stash push -m "$STASH_NAME" --include-untracked
+            fi
+            git pull --rebase
             if git stash list | grep -q "$STASH_NAME"; then
               git stash pop "stash^{/$STASH_NAME}"
             fi
