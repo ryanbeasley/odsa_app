@@ -31,9 +31,12 @@ jobs:
             set -e
             git config --global --add safe.directory /opt/odsa_app
             cd /opt/odsa_app
-            git update-index --skip-worktree server/data/app.db
-            git ls-files server/dist -z | xargs -0 git update-index --skip-worktree || true
+            STASH_NAME="deploy-artifacts"
+            git stash push -m "$STASH_NAME" -- server/data/app.db server/dist || true
             git pull --rebase
+            if git stash list | grep -q "$STASH_NAME"; then
+              git stash pop "stash^{/$STASH_NAME}"
+            fi
             pkill -f "node /opt/odsa_app/server/dist/index.js" || true
             cd /opt/odsa_app/server
             npm install
