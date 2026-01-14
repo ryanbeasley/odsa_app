@@ -15,12 +15,14 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
 
       - name: Deploy server on Google VM
         if: ${{ inputs.deploy_server }}
+        timeout-minutes: 45
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.GCP_SSH_HOST }}
@@ -31,6 +33,15 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
+            keepalive() {
+              while true; do
+                echo "deploy: still running at $(date -u +%FT%TZ)"
+                sleep 20
+              done
+            }
+            keepalive &
+            KEEPALIVE_PID=$!
+            trap 'kill "$KEEPALIVE_PID"' EXIT
             git config --global --add safe.directory /opt/odsa_app
             cd /opt/odsa_app
             git pull
