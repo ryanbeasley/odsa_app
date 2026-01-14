@@ -29,6 +29,7 @@ jobs:
           port: ${{ secrets.GCP_SSH_PORT || '22' }}
           script: |
             set -e
+            git config --global --add safe.directory /opt/odsa_app
             cd /opt/odsa_app
             git pull --ff-only
             pkill -f "node /opt/odsa_app/server/dist/index.js" || true
