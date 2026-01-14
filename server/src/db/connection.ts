@@ -246,16 +246,51 @@ function runMigrations() {
     const hasPhone = userColumns.some((col) => col.name === 'phone');
     const hasSmsEnabled = userColumns.some((col) => col.name === 'event_alerts_sms_enabled');
     const hasEmergencySmsEnabled = userColumns.some((col) => col.name === 'emergency_announcements_sms_enabled');
-    const usernameColumn = hasUsername ? 'username' : "''";
+    const usernameColumn = hasUsername ? 'username' : 'NULL';
     const firstNameColumn = hasFirstName ? 'first_name' : 'NULL';
     const lastNameColumn = hasLastName ? 'last_name' : 'NULL';
     const phoneColumn = hasPhone ? 'phone' : 'NULL';
     const smsColumn = hasSmsEnabled ? 'event_alerts_sms_enabled' : '0';
     const emergencySmsColumn = hasEmergencySmsEnabled ? 'emergency_announcements_sms_enabled' : '0';
     db.exec(
-      `INSERT INTO users_next (id, email, password_hash, role, username, first_name, last_name, phone, event_alerts_sms_enabled, emergency_announcements_sms_enabled)
-       SELECT id, email, password_hash, role, ${usernameColumn}, ${firstNameColumn}, ${lastNameColumn}, ${phoneColumn}, ${smsColumn}, ${emergencySmsColumn}
-       FROM users`
+      `WITH source AS (
+        SELECT
+          id,
+          email,
+          password_hash,
+          role,
+          ${firstNameColumn} AS first_name,
+          ${lastNameColumn} AS last_name,
+          ${phoneColumn} AS phone,
+          ${smsColumn} AS event_alerts_sms_enabled,
+          ${emergencySmsColumn} AS emergency_announcements_sms_enabled,
+          CASE
+            WHEN ${usernameColumn} IS NOT NULL AND ${usernameColumn} != '' THEN ${usernameColumn}
+            WHEN email IS NOT NULL AND email != '' THEN email
+            ELSE 'user_' || id
+          END AS base_username
+        FROM users
+      ),
+      deduped AS (
+        SELECT
+          id,
+          email,
+          password_hash,
+          role,
+          first_name,
+          last_name,
+          phone,
+          event_alerts_sms_enabled,
+          emergency_announcements_sms_enabled,
+          CASE
+            WHEN COUNT(*) OVER (PARTITION BY base_username) = 1 THEN base_username
+            ELSE base_username || '_' || ROW_NUMBER() OVER (PARTITION BY base_username ORDER BY id)
+          END AS username
+        FROM source
+      )
+      INSERT INTO users_next (id, email, password_hash, role, username, first_name, last_name, phone, event_alerts_sms_enabled, emergency_announcements_sms_enabled)
+      SELECT id, email, password_hash, role, username, first_name, last_name, phone, event_alerts_sms_enabled, emergency_announcements_sms_enabled
+      FROM deduped`
     );
     db.exec('DROP TABLE users');
     db.exec('ALTER TABLE users_next RENAME TO users');
