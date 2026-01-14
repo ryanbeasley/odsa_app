@@ -33,7 +33,7 @@ jobs:
             cd /opt/odsa_app
             STASH_NAME="deploy-artifacts"
             git stash push -m "$STASH_NAME" -- server/data/app.db server/dist || true
-            git pull --rebase
+            git pull
             if git stash list | grep -q "$STASH_NAME"; then
               git stash pop "stash^{/$STASH_NAME}"
             fi
