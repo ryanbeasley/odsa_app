@@ -77,7 +77,7 @@ jobs:
         working-directory: mobile
         run: |
           eas build -p ios --profile production --non-interactive
-          eas submit -p ios --latest --non-interactive
+          eas submit -p ios --latest --non-interactive --asc-app-id ${{ secrets.EXPO_ASC_APP_ID }}
 
       - name: Build and submit Android
         working-directory: mobile
