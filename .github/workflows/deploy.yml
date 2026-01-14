@@ -27,6 +27,7 @@ jobs:
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
           port: ${{ secrets.GCP_SSH_PORT || '22' }}
+          command_timeout: 30m
           script: |
             set -e
             git config --global --add safe.directory /opt/odsa_app
