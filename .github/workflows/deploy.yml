@@ -31,7 +31,9 @@ jobs:
             set -e
             git config --global --add safe.directory /opt/odsa_app
             cd /opt/odsa_app
-            git pull --rebase --autostash
+            git update-index --skip-worktree server/data/app.db
+            git ls-files server/dist -z | xargs -0 git update-index --skip-worktree || true
+            git pull --rebase
             pkill -f "node /opt/odsa_app/server/dist/index.js" || true
             cd /opt/odsa_app/server
             npm install
