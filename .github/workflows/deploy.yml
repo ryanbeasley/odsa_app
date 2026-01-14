@@ -13,50 +13,50 @@ on:
         default: true
 
 jobs:
-  deploy:
+  deploy_server:
+    if: ${{ inputs.deploy_server }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
 
-      - name: Deploy server on Google VM
-        if: ${{ inputs.deploy_server }}
-        timeout-minutes: 45
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.GCP_SSH_HOST }}
-          username: ${{ secrets.GCP_SSH_USER }}
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.GCP_SSH_PORT || '22' }}
-          timeout: 30m
-          command_timeout: 30m
-          script: |
-            set -e
-            keepalive() {
-              while true; do
-                echo "deploy: still running at $(date -u +%FT%TZ)"
-                sleep 20
-              done
-            }
-            keepalive &
-            KEEPALIVE_PID=$!
-            trap 'kill "$KEEPALIVE_PID"' EXIT
-            git config --global --add safe.directory /opt/odsa_app
-            cd /opt/odsa_app
-            git pull
-            pkill -f "node /opt/odsa_app/server/dist/index.js" || true
-            cd /opt/odsa_app/server
-            npm install
-            npm run build
-            if command -v pm2 >/dev/null 2>&1; then
-              pm2 restart odsa-server
-            else
-              nohup npm start >/tmp/odsa_server.log 2>&1 &
-            fi
+          ssh-private-key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -p ${{ secrets.GCP_SSH_PORT || '22' }} -H ${{ secrets.GCP_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy server on Google VM
+        timeout-minutes: 45
+        run: |
+          set -e
+          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=6 -p ${{ secrets.GCP_SSH_PORT || '22' }} ${{ secrets.GCP_SSH_USER }}@${{ secrets.GCP_SSH_HOST }} <<'EOF'
+          set -e
+          git config --global --add safe.directory /opt/odsa_app
+          cd /opt/odsa_app
+          git pull
+          pkill -f "node /opt/odsa_app/server/dist/index.js" || true
+          cd /opt/odsa_app/server
+          npm install
+          npm run build
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 restart odsa-server
+          else
+            nohup npm start >/tmp/odsa_server.log 2>&1 &
+          fi
+          EOF
+
+  deploy_mobile:
+    if: ${{ inputs.deploy_mobile }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
 
       - name: Set up Node
-        if: ${{ inputs.deploy_mobile }}
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -64,26 +64,22 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - name: Set up Expo and EAS
-        if: ${{ inputs.deploy_mobile }}
         uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install mobile dependencies
-        if: ${{ inputs.deploy_mobile }}
         working-directory: mobile
         run: npm ci
 
       - name: Build and submit iOS
-        if: ${{ inputs.deploy_mobile }}
         working-directory: mobile
         run: |
           npx eas build -p ios --profile production --non-interactive
           npx eas submit -p ios --latest --non-interactive
 
       - name: Build and submit Android
-        if: ${{ inputs.deploy_mobile }}
         working-directory: mobile
         run: |
           npx eas build -p android --profile production --non-interactive
